@@ -1,0 +1,35 @@
+[project]
+name = "legit"
+version = "0.1.0"
+description = "Learn a GitHub reviewer's style and generate PR reviews in their voice"
+readme = "README.md"
+authors = [
+    { name = "Aaron Aronchick", email = "aronchick@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.15.0",
+    "pydantic>=2.0",
+    "httpx>=0.27",
+    "litellm>=1.50",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+legit = "legit.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.10.7,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

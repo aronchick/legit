@@ -1,0 +1,21 @@
+model:
+  provider: claude
+  temperature: 0.3
+
+github:
+  token_env: GITHUB_TOKEN
+
+profiles:
+  - name: wdbaruni-bacalhau
+    sources:
+      - type: primary
+        repo: bacalhau-project/bacalhau
+        username: wdbaruni
+    chunk_size: 20
+
+retrieval:
+  top_k: 10
+
+review:
+  post_to_github: false
+  abstention_threshold: 0.5

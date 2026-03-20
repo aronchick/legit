@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.legit/data/
+.legit/cache/
+.legit/index/
+.legit/profiles/
+.legit/calibration/
