@@ -1,0 +1,31 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Python 3.11+, uv (package manager), ruff (linter/formatter), pydantic (validation)
+  CLI framework: click or typer (TBD in design)
+  External dependencies: GitHub API (PyGithub or httpx), LLM CLIs (gemini, claude, openai)
+
+  Project: legit — a CLI tool that learns a reviewer's style from GitHub history
+  and applies it to PR reviews. Named as a nod to @liggitt (Jordan Liggett),
+  a prolific Kubernetes reviewer.
+
+  Key principles:
+  - Offline-first: dry-run mode outputs markdown, GitHub posting is optional
+  - Resumable: all fetch operations support interruption and restart
+  - Portable: single directory (.legit/) contains all state and config
+  - Model-agnostic: uses LLM CLIs (gemini, claude, openai) rather than SDKs
+  - Append-only data: GitHub data is immutable once fetched, only new items added
+
+rules:
+  specs:
+    - Requirements must specify behavior for both online and offline/dry-run modes
+    - Data format specs must include resumability and corruption recovery scenarios
+    - Profile specs must address temporal weighting (recent activity > old activity)
+  tasks:
+    - Include verification steps for each major feature
+    - Tasks involving GitHub API must include rate limit handling
+    - Profile generation tasks must include a manual inspection step
+  design:
+    - Document the data flow between fetch → build → review phases
+    - Specify the .legit/ directory structure explicitly
+    - All model interactions must go through CLI wrappers, never direct SDK calls
