@@ -30,6 +30,7 @@ class ProfileConfig(BaseModel):
     sources: list[ProfileSource]
     chunk_size: int = 150
     temporal_half_life: int = 730
+    map_concurrency: int = 4
 
 
 class RetrievalConfig(BaseModel):

@@ -158,6 +158,9 @@ def build(
     max_chunks: Optional[int] = typer.Option(
         None, "--max-chunks", help="Process only the first N chunks (for testing)."
     ),
+    concurrency: Optional[int] = typer.Option(
+        None, "--concurrency", "-j", help="Number of parallel map workers (overrides config)."
+    ),
 ) -> None:
     """Generate a reviewer profile and BM25 retrieval index."""
     from legit.config import load_config
@@ -198,9 +201,13 @@ def build(
             console.print(f"[yellow]Profile '{profile_name}' already exists — skipping.[/]")
             raise typer.Exit(code=0)
 
+    # Override concurrency if specified on CLI
+    if concurrency is not None:
+        profile_cfg.map_concurrency = concurrency
+
     # Phase 1+2: Map-Reduce (build profile)
     console.print(f"\n[bold]Building profile: {profile_name}[/]")
-    console.print("[dim]Phase 1/2: Map-Reduce — analyzing reviewer activity...[/]")
+    console.print(f"[dim]Phase 1/2: Map-Reduce — {profile_cfg.map_concurrency} parallel workers...[/]")
     try:
         build_profile(cfg, profile_name, rebuild_map=rebuild_map, max_chunks=max_chunks)
     except Exception as exc:

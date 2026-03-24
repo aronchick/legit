@@ -185,19 +185,33 @@ def construct_queries(diff_hunks: list[dict]) -> list[str]:
     - ``file_path``: the changed file
     - ``content``:   the diff text (added/removed lines)
 
-    The query combines the file path with the hunk content so that BM25 can
-    match on both naming conventions and code patterns the reviewer has
-    commented on before.
+    Produces two kinds of queries:
+    1. **Content queries** — file name + diff body for pattern matching
+    2. **Path queries** — directory paths to surface the reviewer's historical
+       opinions about the same area of code (codebase-specific knowledge)
     """
     queries: list[str] = []
+    seen_dirs: set[str] = set()
+
     for hunk in diff_hunks:
         file_path = hunk.get("file_path", "")
         content = hunk.get("content", "")
-        # Use the filename (without directories) plus the diff body
+
+        # Content query: filename + diff body
         file_stem = Path(file_path).name if file_path else ""
         query = f"{file_stem} {content}".strip()
         if query:
             queries.append(query)
+
+        # Path query: directory components to find past comments on same area
+        if file_path:
+            parts = Path(file_path).parts
+            # e.g. "pkg/compute/controller.go" -> "pkg compute controller"
+            dir_key = "/".join(parts[:-1]) if len(parts) > 1 else ""
+            if dir_key and dir_key not in seen_dirs:
+                seen_dirs.add(dir_key)
+                queries.append(" ".join(parts))
+
     return queries
 
 
@@ -222,24 +236,60 @@ def _recency_weight(timestamp_str: str, half_life_days: int) -> float:
     return math.exp(-math.log(2) * age_days / half_life_days)
 
 
+def _path_boost(doc_file_path: str, pr_changed_files: set[str], pr_changed_dirs: set[str]) -> float:
+    """Boost score for documents about the same files/directories as the PR.
+
+    This is the key mechanism for codebase-specific reviews: if the reviewer
+    has commented on ``pkg/compute/controller.go`` before and the PR touches
+    that file, those past opinions are highly relevant — they represent the
+    reviewer's accumulated knowledge and preferences for that specific code.
+
+    Returns:
+        3.0 — exact same file path
+        2.0 — same directory (reviewer has opinions about this area)
+        1.0 — no path overlap (generic match)
+    """
+    if not doc_file_path:
+        return 1.0
+    if doc_file_path in pr_changed_files:
+        return 3.0
+    doc_dir = str(Path(doc_file_path).parent)
+    if doc_dir in pr_changed_dirs:
+        return 2.0
+    # Check if any PR directory is a parent/child of the doc directory
+    for pr_dir in pr_changed_dirs:
+        if doc_dir.startswith(pr_dir) or pr_dir.startswith(doc_dir):
+            return 1.5
+    return 1.0
+
+
 def retrieve(
     profile_name: str,
     queries: list[str],
     top_k: int = 10,
     type_weights: dict[str, float] | None = None,
     temporal_half_life: int = 730,
+    pr_changed_files: list[str] | None = None,
 ) -> list[RetrievalDocument]:
     """Retrieve the most relevant past comments for the given queries.
 
     Algorithm:
     1. For each query, score all documents and take the top 5 candidates.
     2. Pool all candidates globally.
-    3. Rerank each candidate by ``bm25_score * type_weight * recency_weight``.
+    3. Rerank by ``bm25_score * type_weight * recency_weight * path_boost``.
     4. Deduplicate (by comment_text).
     5. Return the top *top_k* results.
+
+    The *pr_changed_files* parameter enables codebase-specific retrieval:
+    past comments on the same files/directories get a significant boost,
+    surfacing the reviewer's accumulated opinions about that specific code.
     """
     if type_weights is None:
         type_weights = {"pr_review": 2.0, "issue_comment": 1.0, "commit_comment": 0.5}
+
+    # Build path sets for boost calculation
+    changed_files = set(pr_changed_files or [])
+    changed_dirs = {str(Path(f).parent) for f in changed_files}
 
     idx = BM25Index.load(profile_name)
 
@@ -253,7 +303,8 @@ def retrieve(
             doc_dict = idx.documents[doc_id]
             tw = type_weights.get(doc_dict.get("comment_type", ""), 1.0)
             rw = _recency_weight(doc_dict.get("timestamp", ""), temporal_half_life)
-            combined = bm25_score * tw * rw
+            pb = _path_boost(doc_dict.get("file_path", ""), changed_files, changed_dirs)
+            combined = bm25_score * tw * rw * pb
             # Keep the best score if a document appears across queries
             if doc_id not in candidates or combined > candidates[doc_id]:
                 candidates[doc_id] = combined
@@ -283,19 +334,28 @@ def retrieve(
 def format_examples(docs: list[RetrievalDocument]) -> str:
     """Format retrieved documents as few-shot examples for the review prompt.
 
-    Each example shows the code context (when available) followed by the
-    reviewer's actual comment, labelled with the comment type.
+    Each example shows the file path, code context (when available), and the
+    reviewer's actual comment. The file path is critical — it grounds the
+    example in the specific codebase area, so the reviewer's opinions about
+    that area of code carry forward into the generated review.
     """
     if not docs:
         return ""
 
     parts: list[str] = []
     for i, doc in enumerate(docs, 1):
-        lines: list[str] = [f"--- Example {i} [{doc.comment_type}] ---"]
+        label = f"--- Example {i} [{doc.comment_type}]"
+        if doc.file_path:
+            label += f" on {doc.file_path}"
+        label += " ---"
+
+        lines: list[str] = [label]
         if doc.code_context:
             lines.append("Code:")
             lines.append(doc.code_context)
             lines.append("")
+        if doc.reviewer_username:
+            lines.append(f"Reviewer: {doc.reviewer_username}")
         lines.append("Comment:")
         lines.append(doc.comment_text)
         parts.append("\n".join(lines))

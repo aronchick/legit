@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -545,26 +546,55 @@ def build_profile(
         chunks = chunks[:max_chunks]
     logger.info("Processing %d chunks of up to %d items", len(chunks), profile.chunk_size)
 
-    # 3. Map phase — with caching
+    # 3. Map phase — with caching and parallel processing
     if rebuild_map:
         logger.info("--rebuild-map: clearing chunk cache")
         _clear_cache(profile_name)
 
-    observations: list[ChunkObservation] = []
+    observations: list[ChunkObservation | None] = [None] * len(chunks)
+
+    # First pass: load cached results
+    pending: list[tuple[int, list[dict]]] = []
     for i, chunk in enumerate(chunks):
         cached = None if rebuild_map else _load_cached_chunk(profile_name, i)
         if cached is not None:
-            logger.info("Chunk %d/%d: using cached result", i + 1, len(chunks))
-            observations.append(cached)
+            logger.info("Chunk %d/%d: cached", i + 1, len(chunks))
+            observations[i] = cached
         else:
-            logger.info("Chunk %d/%d: sending to LLM (%d items)…", i + 1, len(chunks), len(chunk))
-            obs = _run_map(config, chunk, i)
-            _save_cached_chunk(profile_name, i, obs)
-            observations.append(obs)
+            pending.append((i, chunk))
+
+    if pending:
+        concurrency = min(profile.map_concurrency, len(pending))
+        logger.info(
+            "Processing %d uncached chunks (%d workers, %d already cached)",
+            len(pending), concurrency, len(chunks) - len(pending),
+        )
+
+        def _process_chunk(idx_chunk: tuple[int, list[dict]]) -> tuple[int, ChunkObservation]:
+            idx, chunk = idx_chunk
+            logger.info("Chunk %d/%d: sending to LLM (%d items)…", idx + 1, len(chunks), len(chunk))
+            obs = _run_map(config, chunk, idx)
+            _save_cached_chunk(profile_name, idx, obs)
+            return idx, obs
+
+        with ThreadPoolExecutor(max_workers=concurrency) as pool:
+            futures = {pool.submit(_process_chunk, item): item[0] for item in pending}
+            completed = 0
+            for future in as_completed(futures):
+                idx, obs = future.result()
+                observations[idx] = obs
+                completed += 1
+                logger.info("  Completed %d/%d chunks", completed, len(pending))
+
+    # Type-narrow: all slots should be filled now
+    final_observations: list[ChunkObservation] = []
+    for obs in observations:
+        assert obs is not None, "Bug: missing chunk observation after map phase"
+        final_observations.append(obs)
 
     # 4. Reduce phase
-    logger.info("Running reduce phase — synthesizing %d chunk observations…", len(observations))
-    profile_markdown = _run_reduce(config, observations, profile, total_items)
+    logger.info("Running reduce phase — synthesizing %d chunk observations…", len(final_observations))
+    profile_markdown = _run_reduce(config, final_observations, profile, total_items)
 
     # 5. Write output
     output_path = _profile_path(profile_name)

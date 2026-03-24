@@ -504,12 +504,16 @@ def generate_review(
             temporal_half_life = pc.temporal_half_life
             break
 
+    # Collect changed file paths for codebase-specific path boosting
+    pr_changed_files = [f.get("filename", "") for f in pr_data.get("files", [])]
+
     retrieved_docs = retrieve(
         profile_name=profile_name,
         queries=queries,
         top_k=config.retrieval.top_k,
         type_weights=config.retrieval.type_weights,
         temporal_half_life=temporal_half_life,
+        pr_changed_files=pr_changed_files,
     )
     examples_text = format_examples(retrieved_docs)
     console.print(f"  Retrieved {len(retrieved_docs)} example comments")
