@@ -329,3 +329,20 @@ def calibrate(
 ) -> None:
     """Calibrate review quality against holdout examples."""
     console.print("Calibration not yet implemented.")
+
+
+# ---------------------------------------------------------------------------
+# legit serve
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def serve(
+    port: int = typer.Option(8142, "--port", "-p", help="Port to listen on."),
+    host: str = typer.Option("0.0.0.0", "--host", help="Host to bind to."),
+) -> None:
+    """Launch the web UI for interactive PR review generation."""
+    from legit.web import serve as start_server
+
+    console.print(f"[bold]Starting legit web UI on http://{host}:{port}[/]")
+    start_server(host=host, port=port)
