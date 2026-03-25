@@ -13,6 +13,38 @@ profiles:
         username: wdbaruni
     chunk_size: 20
 
+  - name: thockin-k8s
+    sources:
+      - type: primary
+        repo: kubernetes/kubernetes
+        username: thockin
+    chunk_size: 20
+    map_concurrency: 4
+
+  - name: liggitt-k8s
+    sources:
+      - type: primary
+        repo: kubernetes/kubernetes
+        username: liggitt
+    chunk_size: 20
+    map_concurrency: 4
+
+  - name: bgrant0607-k8s
+    sources:
+      - type: primary
+        repo: kubernetes/kubernetes
+        username: bgrant0607
+    chunk_size: 20
+    map_concurrency: 4
+
+  - name: lavalamp-k8s
+    sources:
+      - type: primary
+        repo: kubernetes/kubernetes
+        username: lavalamp
+    chunk_size: 20
+    map_concurrency: 4
+
 retrieval:
   top_k: 10
 
