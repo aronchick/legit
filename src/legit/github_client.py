@@ -281,7 +281,7 @@ class GitHubClient:
     # Index all activity
     # -----------------------------------------------------------------------
 
-    def index_activity(self, repo: str, username: str, skip_reviews: bool = False) -> list[IndexEntry]:
+    def index_activity(self, repo: str, username: str, skip_reviews: bool = False, since: str | None = None) -> list[IndexEntry]:
         """Index every discoverable activity type for *username* in *repo*.
 
         Resumes from cursor state if a previous run was interrupted.
@@ -301,24 +301,37 @@ class GitHubClient:
                 cursors.cursors[key] = CursorState()
             return cursors.cursors[key]
 
+        # Build base params — add 'since' filter for large repos
+        since_params: dict[str, str] = {}
+        if since:
+            since_params["since"] = since
+
         # -- PR review comments ---------------------------------------------
-        self._index_endpoint(
-            key="pr_comments",
-            endpoint=f"/repos/{owner}/{name}/pulls/comments",
-            params={"sort": "created", "direction": "asc"},
-            username=username,
-            user_field="user.login",
-            entry_type="pr_comment",
-            cursor=_cursor("pr_comments"),
-            index=index,
-            seen=seen,
-        )
+        # Try the list endpoint first; fall back to search-based approach for
+        # large repos where the list endpoint returns 500/502
+        try:
+            self._index_endpoint(
+                key="pr_comments",
+                endpoint=f"/repos/{owner}/{name}/pulls/comments",
+                params={"sort": "created", "direction": "asc", **since_params},
+                username=username,
+                user_field="user.login",
+                entry_type="pr_comment",
+                cursor=_cursor("pr_comments"),
+                index=index,
+                seen=seen,
+            )
+        except Exception as exc:
+            console.print(f"[yellow]  List endpoint failed ({exc}), falling back to search-based fetch...[/]")
+            self._index_pr_comments_via_search(
+                owner, name, username, since, _cursor("pr_comments"), index, seen,
+            )
 
         # -- Issue comments -------------------------------------------------
         self._index_endpoint(
             key="issue_comments",
             endpoint=f"/repos/{owner}/{name}/issues/comments",
-            params={"sort": "created", "direction": "asc"},
+            params={"sort": "created", "direction": "asc", **since_params},
             username=username,
             user_field="user.login",
             entry_type="issue_comment",
@@ -331,7 +344,7 @@ class GitHubClient:
         self._index_endpoint(
             key="commits",
             endpoint=f"/repos/{owner}/{name}/commits",
-            params={"author": username},
+            params={"author": username, **({"since": since} if since else {})},
             username=username,
             user_field=None,  # already filtered by API param
             entry_type="commit",
@@ -346,7 +359,7 @@ class GitHubClient:
         self._index_endpoint(
             key="issues",
             endpoint=f"/repos/{owner}/{name}/issues",
-            params={"creator": username, "sort": "created", "direction": "asc", "state": "all"},
+            params={"creator": username, "sort": "created", "direction": "asc", "state": "all", **({"since": since} if since else {})},
             username=username,
             user_field=None,  # filtered by creator param
             entry_type="issue",
@@ -545,6 +558,94 @@ class GitHubClient:
             cursor.page += max(total_pages, 1)
 
         console.print(f"  {key}: +{added} new entries (complete={exhausted})")
+
+    # -----------------------------------------------------------------------
+    # Internal: search-based PR comment indexer (fallback for large repos)
+    # -----------------------------------------------------------------------
+
+    def _index_pr_comments_via_search(
+        self,
+        owner: str,
+        repo: str,
+        username: str,
+        since: str | None,
+        cursor: CursorState,
+        index: list[IndexEntry],
+        seen: set[str],
+    ) -> None:
+        """Fallback: use Search API to find PRs the user commented on, then
+        fetch comments per-PR. Works where the global list endpoint 500s."""
+        if cursor.complete:
+            console.print("[dim]Skipping pr_comments via search (already complete)[/]")
+            return
+
+        console.print(f"Indexing [bold]pr_comments[/] via search API…")
+
+        # Search for PRs where this user commented
+        q = f"commenter:{username} repo:{owner}/{repo} type:pr"
+        if since:
+            q += f" created:>{since}"
+
+        pr_numbers: list[int] = []
+        page = cursor.page
+        while True:
+            resp = self._transport.get(
+                "/search/issues",
+                params={"q": q, "per_page": 100, "page": page, "sort": "created", "order": "asc"},
+            )
+            data = resp.json()
+            items = data.get("items", [])
+            if not items:
+                break
+            for item in items:
+                pr_num = item.get("number")
+                if pr_num:
+                    pr_numbers.append(pr_num)
+            page += 1
+            total = data.get("total_count", 0)
+            if page * 100 >= min(total, 1000):  # Search API caps at 1000 results
+                break
+
+        console.print(f"  Found {len(pr_numbers)} PRs with comments by {username}")
+
+        # Fetch comments for each PR, filtering to this user
+        added = 0
+        for i, pr_num in enumerate(pr_numbers):
+            if i > 0 and i % 50 == 0:
+                console.print(f"  Processing PR comments: {i}/{len(pr_numbers)}…")
+            try:
+                comments_resp = self._transport.get(
+                    f"/repos/{owner}/{repo}/pulls/{pr_num}/comments",
+                )
+                comments = comments_resp.json()
+                if not isinstance(comments, list):
+                    continue
+                for comment in comments:
+                    if (comment.get("user") or {}).get("login", "").lower() != username.lower():
+                        continue
+                    cid = comment.get("id")
+                    uid = f"pr_comment:{cid}"
+                    if uid in seen:
+                        continue
+                    created_raw = comment.get("created_at")
+                    created_at = _parse_dt(created_raw) if created_raw else datetime.now(tz=timezone.utc)
+                    entry = IndexEntry(
+                        id=cid,
+                        type="pr_comment",
+                        url=comment.get("url", ""),
+                        created_at=created_at,
+                        updated_at=_parse_dt(comment.get("updated_at")) if comment.get("updated_at") else None,
+                        pr_number=pr_num,
+                    )
+                    index.append(entry)
+                    seen.add(uid)
+                    added += 1
+            except Exception as exc:
+                console.print(f"[dim]  Skipped PR #{pr_num}: {exc}[/]")
+                continue
+
+        cursor.complete = True
+        console.print(f"  pr_comments (via search): +{added} new entries")
 
     # -----------------------------------------------------------------------
     # Internal: reviews indexer (needs PR listing first)

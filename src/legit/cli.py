@@ -129,7 +129,7 @@ def fetch(
         for source_repo, username in sources:
             console.print(f"\n[bold]Fetching {username} @ {source_repo}[/]")
             try:
-                client.index_activity(source_repo, username, skip_reviews=skip_reviews)
+                client.index_activity(source_repo, username, skip_reviews=skip_reviews, since=since)
                 if not index_only:
                     client.download_content(source_repo, username)
             except Exception as exc:

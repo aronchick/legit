@@ -104,18 +104,20 @@ def _run_claude(prompt: str, model_name: str | None, timeout: int, temperature: 
     """Run the ``claude`` CLI and return its stdout."""
     cli = _check_cli("claude")
 
+    # Claude CLI expects the prompt as a positional argument, not stdin
     cmd = [cli, "--print", "--output-format", "text"]
     if model_name:
         cmd.extend(["--model", model_name])
+    cmd.append(prompt)
 
-    logger.debug("Running claude CLI: %s", " ".join(cmd))
+    logger.debug("Running claude CLI (prompt length: %d chars)", len(prompt))
 
     result = subprocess.run(
         cmd,
-        input=prompt,
         capture_output=True,
         text=True,
         timeout=timeout,
+        stdin=subprocess.DEVNULL,
     )
 
     if result.returncode != 0:
@@ -156,7 +158,7 @@ def _run_codex(prompt: str, model_name: str | None, timeout: int, temperature: f
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
         output_path = tmp.name
 
-    cmd = [cli, "exec", prompt, "-o", output_path, "--quiet"]
+    cmd = [cli, "exec", "-o", output_path, prompt]
     logger.debug("Running codex CLI: %s", " ".join(cmd))
 
     result = subprocess.run(
@@ -183,6 +185,7 @@ _BACKENDS: dict[str, Callable[..., str]] = {
     "claude": _run_claude,
     "gemini": _run_gemini,
     "codex": _run_codex,
+    "openai": _run_codex,
 }
 
 

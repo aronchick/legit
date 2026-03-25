@@ -1,5 +1,5 @@
 model:
-  provider: claude
+  provider: codex
   temperature: 0.3
 
 github:
