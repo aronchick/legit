@@ -334,18 +334,104 @@ def calibrate(
     profile: Optional[str] = typer.Option(
         None, "--profile", help="Name of the profile to calibrate."
     ),
-    auto: bool = typer.Option(
-        False, "--auto", help="Run calibration automatically."
-    ),
-    refresh_holdout: bool = typer.Option(
-        False, "--refresh-holdout", help="Resample the holdout set."
+    count: int = typer.Option(
+        5, "--count", "-n", help="Number of holdout PRs to test against."
     ),
     history: bool = typer.Option(
         False, "--history", help="Show calibration history."
     ),
 ) -> None:
-    """Calibrate review quality against holdout examples."""
-    console.print("Calibration not yet implemented.")
+    """Measure review quality against real reviewer comments.
+
+    Finds PRs where the reviewer actually left comments, generates reviews
+    with legit, then scores them with LLM-as-judge on four dimensions:
+    issue detection, voice fidelity, appropriate abstention, and false positives.
+    """
+    from legit.calibrate import (
+        list_calibration_history,
+        load_latest_calibration,
+        run_calibration,
+        save_calibration,
+    )
+    from legit.config import load_config
+
+    try:
+        cfg = load_config()
+    except FileNotFoundError:
+        console.print("[red]No .legit/config.yaml found. Run 'legit init' first.[/]")
+        raise typer.Exit(code=1)
+
+    # Resolve profile
+    if profile:
+        matches = [p for p in cfg.profiles if p.name == profile]
+        if not matches:
+            console.print(f"[red]Profile '{profile}' not found in config.[/]")
+            raise typer.Exit(code=1)
+        profile_name = matches[0].name
+    else:
+        if len(cfg.profiles) == 0:
+            console.print("[red]No profiles configured.[/]")
+            raise typer.Exit(code=1)
+        if len(cfg.profiles) > 1:
+            names = ", ".join(p.name for p in cfg.profiles)
+            console.print(f"[red]Multiple profiles ({names}). Use --profile to pick one.[/]")
+            raise typer.Exit(code=1)
+        profile_name = cfg.profiles[0].name
+
+    # Show history
+    if history:
+        hist = list_calibration_history(profile_name)
+        if not hist:
+            console.print(f"[dim]No calibration history for {profile_name}[/]")
+            raise typer.Exit(code=0)
+        console.print(f"\n[bold]Calibration history for {profile_name}:[/]\n")
+        for path in hist[-10:]:
+            console.print(f"  {path.name}")
+
+        latest = load_latest_calibration(profile_name)
+        if latest:
+            console.print(f"\n[bold]Latest results ({latest.timestamp}):[/]")
+            console.print(f"  Issue detection:       {latest.avg_issue_detection}/10")
+            console.print(f"  Voice fidelity:        {latest.avg_voice_fidelity}/10")
+            console.print(f"  Appropriate abstention: {latest.avg_appropriate_abstention}/10")
+            console.print(f"  False positives:       {latest.avg_false_positives}/10")
+            console.print(f"  [bold]Overall:               {latest.avg_overall}/10[/]")
+        raise typer.Exit(code=0)
+
+    # Run calibration
+    console.print(f"\n[bold]Calibrating {profile_name}[/] against {count} holdout PRs\n")
+
+    try:
+        result = run_calibration(cfg, profile_name, holdout_count=count)
+    except Exception as exc:
+        console.print(f"[red]Calibration failed: {exc}[/]")
+        import traceback
+        traceback.print_exc()
+        raise typer.Exit(code=1)
+
+    # Save
+    path = save_calibration(result)
+    console.print(f"\n[green]Results saved to {path}[/]\n")
+
+    # Display results
+    console.print(f"[bold]Calibration Results: {profile_name}[/]\n")
+    console.print(f"  Holdout PRs tested:    {result.holdout_count}")
+    console.print(f"  Issue detection:       {result.avg_issue_detection}/10")
+    console.print(f"  Voice fidelity:        {result.avg_voice_fidelity}/10")
+    console.print(f"  Appropriate abstention: {result.avg_appropriate_abstention}/10")
+    console.print(f"  False positives:       {result.avg_false_positives}/10")
+    console.print(f"  [bold]Overall:               {result.avg_overall}/10[/]")
+
+    # Per-PR breakdown
+    console.print(f"\n[bold]Per-PR Scores:[/]\n")
+    for score in result.scores:
+        status = "[green]" if score.overall >= 6 else "[yellow]" if score.overall >= 4 else "[red]"
+        console.print(
+            f"  PR #{score.pr_number:6d}: {status}{score.overall:4.1f}/10[/]  "
+            f"(issue={score.issue_detection:.0f} voice={score.voice_fidelity:.0f} "
+            f"abstain={score.appropriate_abstention:.0f} fp={score.false_positives:.0f})  "
+            f"[dim]{score.generated_comment_count} gen / {score.real_comment_count} real[/]"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -309,7 +309,7 @@ def _run_review_with_progress(
 
         # Step 5: Generate review (LLM call #1 — the big one)
         prompt_kb = (len(system_prompt) + len(user_prompt)) // 1024
-        progress_q.put({"step": "generate", "status": "running", "detail": f"Generating review with Claude ({prompt_kb}KB prompt)... this takes 1-2 minutes"})
+        progress_q.put({"step": "generate", "status": "running", "detail": f"Generating review ({prompt_kb}KB prompt)... this takes 1-2 minutes"})
         t0 = time.time()
         result = run_inference(
             system_prompt=system_prompt,
