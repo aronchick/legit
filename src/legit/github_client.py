@@ -479,6 +479,165 @@ class GitHubClient:
         }
 
     # -----------------------------------------------------------------------
+    # Fetch source file contents for codebase context
+    # -----------------------------------------------------------------------
+
+    def fetch_file_contents(
+        self,
+        owner: str,
+        repo: str,
+        paths: list[str],
+        ref: str = "HEAD",
+        max_file_size: int = 100_000,
+    ) -> dict[str, str]:
+        """Fetch full file contents from the repo at a given ref.
+
+        Uses the GitHub Contents API to retrieve each file individually.
+        Skips files that are too large, binary, or missing.
+
+        Returns a dict mapping file path → file content (decoded text).
+        """
+        import base64
+
+        results: dict[str, str] = {}
+
+        for path in paths:
+            try:
+                resp = self._transport.get(
+                    f"/repos/{owner}/{repo}/contents/{path}",
+                    params={"ref": ref},
+                )
+                if resp.status_code >= 400:
+                    continue
+
+                data = resp.json()
+
+                # Skip directories, symlinks, submodules
+                if data.get("type") != "file":
+                    continue
+
+                # Skip files too large (GitHub returns download_url for >1MB)
+                size = data.get("size", 0)
+                if size > max_file_size:
+                    continue
+
+                # Decode base64 content
+                content_b64 = data.get("content", "")
+                if not content_b64:
+                    continue
+
+                try:
+                    content = base64.b64decode(content_b64).decode("utf-8", errors="replace")
+                    results[path] = content
+                except Exception:
+                    continue
+
+            except Exception:
+                continue
+
+        return results
+
+    def fetch_pr_context_files(self, pr_url: str, pr_data: dict) -> dict[str, str]:
+        """Fetch full source files for a PR to provide codebase context.
+
+        Fetches:
+        1. Full contents of every changed file (from the base branch)
+        2. Key project files (README, OWNERS, go.mod, etc.) from changed directories
+
+        Returns a dict mapping file path → file content.
+        """
+        owner, repo, _ = parse_pr_url(pr_url)
+
+        # Get the base branch ref from PR metadata
+        base_ref = (pr_data.get("metadata", {}).get("base", {}) or {}).get("sha", "HEAD")
+
+        # Collect file paths to fetch
+        changed_files = [
+            f.get("filename", "")
+            for f in pr_data.get("files", [])
+            if f.get("filename")
+        ]
+
+        # Also look for key project files in the same directories
+        key_filenames = {"README.md", "OWNERS", "go.mod", "Cargo.toml", "package.json", "pyproject.toml"}
+        dirs_seen: set[str] = set()
+        extra_paths: list[str] = []
+        for fpath in changed_files:
+            parts = fpath.rsplit("/", 1)
+            if len(parts) == 2:
+                dirname = parts[0]
+                if dirname not in dirs_seen:
+                    dirs_seen.add(dirname)
+                    for kf in key_filenames:
+                        extra_paths.append(f"{dirname}/{kf}")
+
+        # Also fetch root project files
+        for kf in key_filenames:
+            extra_paths.append(kf)
+
+        # Deduplicate
+        all_paths = list(dict.fromkeys(changed_files + extra_paths))
+
+        return self.fetch_file_contents(owner, repo, all_paths, ref=base_ref)
+
+    # -----------------------------------------------------------------------
+    # Fetch reviewer's authored PR diffs for coding style analysis
+    # -----------------------------------------------------------------------
+
+    def fetch_authored_pr_diffs(
+        self,
+        owner: str,
+        repo: str,
+        username: str,
+        max_prs: int = 50,
+    ) -> list[dict]:
+        """Fetch diffs from PRs authored by the reviewer.
+
+        Returns a list of dicts with keys: number, title, diff, files.
+        Used to analyze the reviewer's own coding style and patterns.
+        """
+        # Search for merged PRs authored by this user
+        q = f"author:{username} repo:{owner}/{repo} type:pr is:merged"
+        resp = self._transport.get(
+            "/search/issues",
+            params={"q": q, "per_page": min(max_prs, 100), "sort": "created", "order": "desc"},
+        )
+        data = resp.json()
+        pr_items = data.get("items", [])
+
+        results: list[dict] = []
+        for item in pr_items[:max_prs]:
+            pr_num = item.get("number")
+            if not pr_num:
+                continue
+
+            try:
+                # Fetch the diff
+                diff_resp = self._transport.get(
+                    f"/repos/{owner}/{repo}/pulls/{pr_num}",
+                    headers={"Accept": "application/vnd.github.diff"},
+                )
+                diff_text = diff_resp.text
+
+                # Fetch file list
+                files_resp = self._transport.get(
+                    f"/repos/{owner}/{repo}/pulls/{pr_num}/files",
+                )
+                files = files_resp.json() if isinstance(files_resp.json(), list) else []
+
+                results.append({
+                    "number": pr_num,
+                    "title": item.get("title", ""),
+                    "diff": diff_text[:50_000],  # Cap per-PR diff size
+                    "files": [f.get("filename", "") for f in files],
+                    "created_at": item.get("created_at", ""),
+                })
+            except Exception:
+                continue
+
+        return results
+
+    # -----------------------------------------------------------------------
     # Internal: generic endpoint indexer
     # -----------------------------------------------------------------------
 

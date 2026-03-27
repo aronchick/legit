@@ -132,6 +132,23 @@ def fetch(
                 client.index_activity(source_repo, username, skip_reviews=skip_reviews, since=since)
                 if not index_only:
                     client.download_content(source_repo, username)
+
+                # Also fetch authored PR diffs for coding style analysis
+                console.print(f"  [dim]Fetching authored PR diffs for coding style...[/]")
+                owner, repo_name = source_repo.split("/", 1)
+                authored = client.fetch_authored_pr_diffs(owner, repo_name, username, max_prs=30)
+                if authored:
+                    from legit.config import legit_path
+                    import json
+                    ddir = legit_path() / "data" / f"{owner}_{repo_name}" / username
+                    ddir.mkdir(parents=True, exist_ok=True)
+                    (ddir / "authored_prs.json").write_text(
+                        json.dumps(authored, indent=2, default=str) + "\n"
+                    )
+                    console.print(f"  [green]Saved {len(authored)} authored PR diffs[/]")
+                else:
+                    console.print(f"  [dim]No authored PRs found[/]")
+
             except Exception as exc:
                 console.print(f"[red]Error fetching {source_repo}/{username}: {exc}[/]")
                 continue

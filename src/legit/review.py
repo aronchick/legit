@@ -154,11 +154,14 @@ _USER_TEMPLATE = """\
 ```diff
 {diff}
 ```
-
+{codebase_context}
 ## Existing Discussion
 {existing_threads}
 
-Review this PR as {profile_name} would. Provide a summary and inline comments \
+Review this PR as {profile_name} would. You have full context of the source \
+files being changed — use this to identify issues that go beyond the diff, such \
+as inconsistencies with surrounding code, violated patterns, or missing \
+interactions with other parts of the file. Provide a summary and inline comments \
 with confidence scores (0.0-1.0). List any files you choose to abstain from \
 reviewing in ``abstained_files`` with a reason in ``abstention_reason``.
 """
@@ -176,9 +179,49 @@ def _build_system_prompt(
     )
 
 
+def _format_codebase_context(context_files: dict[str, str], max_total_chars: int = 200_000) -> str:
+    """Format fetched source files as codebase context for the LLM prompt.
+
+    Prioritizes smaller files and truncates large ones to stay within budget.
+    """
+    if not context_files:
+        return ""
+
+    parts: list[str] = ["\n## Codebase Context (full source files from base branch)\n"]
+    remaining = max_total_chars
+    # Sort by size ascending — include smaller files first (more files > fewer complete files)
+    sorted_files = sorted(context_files.items(), key=lambda kv: len(kv[1]))
+
+    for path, content in sorted_files:
+        if remaining <= 0:
+            parts.append(f"\n*(additional files omitted — context budget exhausted)*\n")
+            break
+
+        # Determine language hint for code fencing
+        ext = path.rsplit(".", 1)[-1] if "." in path else ""
+        lang_map = {"go": "go", "py": "python", "js": "javascript", "ts": "typescript",
+                     "rs": "rust", "java": "java", "rb": "ruby", "yaml": "yaml",
+                     "yml": "yaml", "json": "json", "md": "markdown", "toml": "toml"}
+        lang = lang_map.get(ext, "")
+
+        if len(content) > remaining:
+            content = content[:remaining] + "\n... (file truncated)"
+
+        parts.append(f"### `{path}`")
+        parts.append(f"```{lang}")
+        parts.append(content)
+        parts.append("```\n")
+
+        remaining -= len(content)
+
+    return "\n".join(parts)
+
+
 def _build_user_prompt(
     profile_name: str,
     pr_data: dict,
+    context_files: dict[str, str] | None = None,
+    expertise_context: str = "",
 ) -> str:
     metadata = pr_data["metadata"]
     title = metadata.get("title", "(untitled)")
@@ -202,6 +245,21 @@ def _build_user_prompt(
         pr_data.get("reviews", []),
     )
 
+    # Budget allocation for context sections (total prompt target: <400KB)
+    # Diff: 120KB, codebase context: 200KB, expertise: 3KB, other: ~10KB
+    # If diff is smaller, give the savings to codebase context
+    diff_savings = max(0, 120_000 - len(diff))
+    codebase_budget = min(200_000 + diff_savings, 300_000)
+
+    codebase_context = _format_codebase_context(context_files or {}, max_total_chars=codebase_budget)
+
+    # Combine expertise context with codebase context
+    combined_context = ""
+    if expertise_context:
+        combined_context += expertise_context + "\n"
+    if codebase_context:
+        combined_context += codebase_context
+
     return _USER_TEMPLATE.format(
         title=title,
         author=author,
@@ -210,6 +268,7 @@ def _build_user_prompt(
         diff=diff,
         existing_threads=existing_threads,
         profile_name=profile_name,
+        codebase_context=combined_context,
     )
 
 
@@ -479,18 +538,31 @@ def generate_review(
     8. Apply max_comments cap
     9. Output: dry-run to stdout/file, or post to GitHub
     """
-    # -- Step 1: Load profile ------------------------------------------------
+    # -- Step 1: Load profile + expertise index --------------------------------
     console.print(f"[bold]Loading profile:[/] {profile_name}")
     profile_document = load_profile(profile_name)
+
+    # Load pre-built expertise index (optional — degrades gracefully)
+    from legit.expertise import format_expertise_context, load_expertise_index, lookup_expertise
+    expertise_index = load_expertise_index(profile_name)
+    if expertise_index:
+        console.print(f"  [dim]Loaded expertise index ({len(expertise_index.entries)} directories)[/]")
+    else:
+        console.print(f"  [dim]No expertise index — run 'legit build' to generate[/]")
 
     # -- Step 2: Fetch PR data -----------------------------------------------
     console.print(f"[bold]Fetching PR:[/] {pr_url}")
     with GitHubClient(config.github) as gh:
         pr_data = gh.fetch_pr_for_review(pr_url)
 
-    pr_title = pr_data["metadata"].get("title", "(untitled)")
-    file_count = len(pr_data.get("files", []))
-    console.print(f"  PR: {pr_title} ({file_count} files changed)")
+        pr_title = pr_data["metadata"].get("title", "(untitled)")
+        file_count = len(pr_data.get("files", []))
+        console.print(f"  PR: {pr_title} ({file_count} files changed)")
+
+        # -- Step 2b: Fetch codebase context (full source files) ----------------
+        console.print("[bold]Fetching codebase context...[/]")
+        context_files = gh.fetch_pr_context_files(pr_url, pr_data)
+        console.print(f"  Fetched {len(context_files)} source files ({sum(len(v) for v in context_files.values()) // 1024}KB)")
 
     # -- Step 3: Retrieve similar past comments ------------------------------
     console.print("[bold]Retrieving similar past comments...[/]")
@@ -518,9 +590,21 @@ def generate_review(
     examples_text = format_examples(retrieved_docs)
     console.print(f"  Retrieved {len(retrieved_docs)} example comments")
 
+    # -- Step 3b: Expertise lookup (pre-built, instant) -----------------------
+    expertise_context = ""
+    if expertise_index:
+        expertise_entries = lookup_expertise(expertise_index, pr_changed_files)
+        expertise_context = format_expertise_context(expertise_entries)
+        if expertise_entries:
+            console.print(f"  Matched {len(expertise_entries)} areas of expertise")
+
     # -- Step 4: Construct prompt --------------------------------------------
     system_prompt = _build_system_prompt(profile_name, profile_document, examples_text)
-    user_prompt = _build_user_prompt(profile_name, pr_data)
+    user_prompt = _build_user_prompt(
+        profile_name, pr_data,
+        context_files=context_files,
+        expertise_context=expertise_context,
+    )
 
     # -- Step 5: Generate review via LLM -------------------------------------
     console.print("[bold]Generating review...[/]")

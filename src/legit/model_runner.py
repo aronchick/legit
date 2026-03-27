@@ -101,23 +101,25 @@ def _extract_json(text: str) -> str:
 
 
 def _run_claude(prompt: str, model_name: str | None, timeout: int, temperature: float) -> str:
-    """Run the ``claude`` CLI and return its stdout."""
+    """Run the ``claude`` CLI and return its stdout.
+
+    Always pipes the prompt via stdin to avoid hitting the OS ``ARG_MAX``
+    limit on large prompts (profiles + diffs can easily exceed 2 MB).
+    """
     cli = _check_cli("claude")
 
-    # Claude CLI expects the prompt as a positional argument, not stdin
     cmd = [cli, "--print", "--output-format", "text"]
     if model_name:
         cmd.extend(["--model", model_name])
-    cmd.append(prompt)
 
     logger.debug("Running claude CLI (prompt length: %d chars)", len(prompt))
 
     result = subprocess.run(
         cmd,
+        input=prompt,
         capture_output=True,
         text=True,
         timeout=timeout,
-        stdin=subprocess.DEVNULL,
     )
 
     if result.returncode != 0:

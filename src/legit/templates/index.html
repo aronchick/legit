@@ -27,17 +27,9 @@
       max-width: 960px;
       margin: 0 auto;
     }
-    h1 {
-      font-size: 1.8rem;
-      margin-bottom: 0.25rem;
-      color: var(--text);
-    }
+    h1 { font-size: 1.8rem; margin-bottom: 0.25rem; color: var(--text); }
     h1 span { color: var(--accent); }
-    .subtitle {
-      color: var(--text-dim);
-      margin-bottom: 2rem;
-      font-size: 0.95rem;
-    }
+    .subtitle { color: var(--text-dim); margin-bottom: 2rem; font-size: 0.95rem; }
     form {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -45,13 +37,7 @@
       padding: 1.5rem;
       margin-bottom: 2rem;
     }
-    label {
-      display: block;
-      font-size: 0.85rem;
-      color: var(--text-dim);
-      margin-bottom: 0.25rem;
-      font-weight: 600;
-    }
+    label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.25rem; font-weight: 600; }
     input[type="text"], select {
       width: 100%;
       padding: 0.6rem 0.8rem;
@@ -79,10 +65,9 @@
       transition: background 0.15s;
     }
     button:hover { background: var(--accent-hover); }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Review output */
     .review-container {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -96,39 +81,13 @@
       align-items: center;
       gap: 0.5rem;
     }
-    .review-header .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--green);
-    }
-    .review-header h2 {
-      font-size: 1rem;
-      font-weight: 600;
-    }
-    .summary {
-      padding: 1.5rem;
-      border-bottom: 1px solid var(--border);
-      white-space: pre-wrap;
-    }
-    .comment-card {
-      border-bottom: 1px solid var(--border);
-      padding: 1.5rem;
-    }
+    .review-header .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); }
+    .review-header h2 { font-size: 1rem; font-weight: 600; }
+    .summary { padding: 1.5rem; border-bottom: 1px solid var(--border); white-space: pre-wrap; }
+    .comment-card { border-bottom: 1px solid var(--border); padding: 1.5rem; }
     .comment-card:last-child { border-bottom: none; }
-    .comment-file {
-      font-family: 'SFMono-Regular', Consolas, monospace;
-      font-size: 0.85rem;
-      color: var(--accent);
-      margin-bottom: 0.5rem;
-    }
-    .confidence {
-      display: inline-block;
-      font-size: 0.75rem;
-      padding: 0.1rem 0.5rem;
-      border-radius: 10px;
-      margin-left: 0.5rem;
-    }
+    .comment-file { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.85rem; color: var(--accent); margin-bottom: 0.5rem; }
+    .confidence { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.5rem; border-radius: 10px; margin-left: 0.5rem; }
     .confidence.high { background: rgba(63, 185, 80, 0.15); color: var(--green); }
     .confidence.medium { background: rgba(210, 153, 34, 0.15); color: var(--yellow); }
     .confidence.low { background: rgba(248, 81, 73, 0.15); color: var(--red); }
@@ -145,31 +104,11 @@
       color: var(--text-dim);
       border-left: 3px solid var(--accent);
     }
-    .comment-text {
-      white-space: pre-wrap;
-    }
-    .abstained {
-      padding: 1.5rem;
-      color: var(--text-dim);
-      font-size: 0.9rem;
-    }
-    .abstained h3 {
-      font-size: 0.85rem;
-      color: var(--text-dim);
-      margin-bottom: 0.5rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .abstained ul {
-      list-style: none;
-      padding: 0;
-    }
-    .abstained li {
-      font-family: 'SFMono-Regular', Consolas, monospace;
-      font-size: 0.8rem;
-      padding: 0.2rem 0;
-    }
+    .comment-text { white-space: pre-wrap; }
+    .abstained { padding: 1.5rem; color: var(--text-dim); font-size: 0.9rem; }
+    .abstained h3 { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .abstained ul { list-style: none; padding: 0; }
+    .abstained li { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.8rem; padding: 0.2rem 0; }
     .error-box {
       background: rgba(248, 81, 73, 0.1);
       border: 1px solid var(--red);
@@ -180,31 +119,97 @@
       font-size: 0.85rem;
       color: var(--red);
     }
-    .spinner {
-      display: none;
-      margin-left: 0.5rem;
+
+    /* Compare bar */
+    .compare-bar {
+      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.85rem;
     }
-    form.loading button { opacity: 0.5; }
-    form.loading .spinner { display: inline-block; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner::after {
-      content: '';
+    .compare-bar a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .compare-bar a:hover { text-decoration: underline; }
+    .compare-bar .hint { color: var(--text-dim); font-size: 0.8rem; }
+
+    /* Sample PRs */
+    .samples { margin-bottom: 2rem; }
+    .samples h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--text); }
+    .samples p.desc { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 1rem; }
+    .sample-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; }
+    .sample-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      text-decoration: none;
+      color: var(--text);
+      transition: border-color 0.15s, transform 0.1s;
+      display: block;
+      cursor: pointer;
+    }
+    .sample-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .sample-card .pr-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.4rem; line-height: 1.3; }
+    .sample-card .pr-meta { font-size: 0.75rem; color: var(--text-dim); display: flex; justify-content: space-between; align-items: center; }
+    .sample-card .pr-meta .reviewer-tag { background: rgba(88, 166, 255, 0.1); color: var(--accent); padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+    .sample-card .pr-meta .comment-count { font-size: 0.7rem; }
+    .show-all-btn {
       display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-      vertical-align: middle;
+      margin-top: 0.75rem;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+      color: var(--accent);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s;
     }
+    .show-all-btn:hover { border-color: var(--accent); color: var(--accent-hover); }
+    .all-samples { display: none; margin-top: 0.75rem; }
+    .all-samples.visible { display: grid; }
+
+    /* Progress panel */
+    .progress-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .progress-panel h2 { font-size: 1rem; margin-bottom: 1rem; }
+    .step-list { list-style: none; padding: 0; }
+    .step-list li {
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      font-size: 0.9rem;
+    }
+    .step-list li:last-child { border-bottom: none; }
+    .step-icon { width: 20px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+    .step-icon.pending { color: var(--text-dim); }
+    .step-icon.running { color: var(--accent); }
+    .step-icon.done { color: var(--green); }
+    .step-icon.error { color: var(--red); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .step-icon.running { animation: pulse 1.5s ease-in-out infinite; }
+    .step-detail { color: var(--text-dim); font-size: 0.8rem; margin-top: 0.15rem; }
+    .step-elapsed { color: var(--text-dim); font-size: 0.75rem; margin-left: auto; flex-shrink: 0; }
+    .step-content { flex: 1; }
+    .step-name { font-weight: 500; }
+    .step-name.running { color: var(--accent); }
+    .step-name.done { color: var(--text); }
+    .step-name.pending { color: var(--text-dim); }
   </style>
 </head>
 <body>
   <h1><span>legit</span> &mdash; PR Review Generator</h1>
   <p class="subtitle">Generate PR reviews in a learned reviewer's voice. Paste a PR URL, pick a profile, get the review.</p>
 
-  <form method="post" action="/review" onsubmit="this.classList.add('loading'); this.querySelector('button').disabled=true;">
+  <form id="review-form">
     <label for="pr_url">GitHub PR URL</label>
     <input type="text" id="pr_url" name="pr_url" placeholder="https://github.com/org/repo/pull/123" value="{{ pr_url or '' }}" required>
 
@@ -215,8 +220,58 @@
       {% endfor %}
     </select>
 
-    <button type="submit">Generate Review <span class="spinner"></span></button>
+    <button type="submit" id="submit-btn">Generate Review</button>
   </form>
+
+  <!-- Progress panel (hidden until a review starts) -->
+  <div id="progress-panel" class="progress-panel" style="display:none;">
+    <h2 id="progress-title">Generating review...</h2>
+    <ul class="step-list" id="step-list">
+      <li id="step-profile"><span class="step-icon pending" id="icon-profile"></span><div class="step-content"><div class="step-name pending" id="name-profile">Load reviewer profile</div><div class="step-detail" id="detail-profile"></div></div><div class="step-elapsed" id="elapsed-profile"></div></li>
+      <li id="step-fetch"><span class="step-icon pending" id="icon-fetch"></span><div class="step-content"><div class="step-name pending" id="name-fetch">Fetch PR from GitHub</div><div class="step-detail" id="detail-fetch"></div></div><div class="step-elapsed" id="elapsed-fetch"></div></li>
+      <li id="step-context"><span class="step-icon pending" id="icon-context"></span><div class="step-content"><div class="step-name pending" id="name-context">Fetch codebase context</div><div class="step-detail" id="detail-context"></div></div><div class="step-elapsed" id="elapsed-context"></div></li>
+      <li id="step-retrieve"><span class="step-icon pending" id="icon-retrieve"></span><div class="step-content"><div class="step-name pending" id="name-retrieve">Search past review comments</div><div class="step-detail" id="detail-retrieve"></div></div><div class="step-elapsed" id="elapsed-retrieve"></div></li>
+      <li id="step-generate"><span class="step-icon pending" id="icon-generate"></span><div class="step-content"><div class="step-name pending" id="name-generate">Generate review with Claude</div><div class="step-detail" id="detail-generate"></div></div><div class="step-elapsed" id="elapsed-generate"></div></li>
+      <li id="step-critique"><span class="step-icon pending" id="icon-critique"></span><div class="step-content"><div class="step-name pending" id="name-critique">Self-critique for authenticity</div><div class="step-detail" id="detail-critique"></div></div><div class="step-elapsed" id="elapsed-critique"></div></li>
+      <li id="step-filter"><span class="step-icon pending" id="icon-filter"></span><div class="step-content"><div class="step-name pending" id="name-filter">Apply confidence filters</div><div class="step-detail" id="detail-filter"></div></div><div class="step-elapsed" id="elapsed-filter"></div></li>
+    </ul>
+  </div>
+
+  <!-- Review output (built by JS using safe DOM methods) -->
+  <div id="review-output"></div>
+
+  {% if sample_prs %}
+  <div class="samples" id="samples-section">
+    <h2>Try a Sample PR</h2>
+    <p class="desc">Click any card to generate a review. Each PR has extensive discussion from the reviewer — open the original PR in another tab to compare.</p>
+
+    <div class="sample-grid">
+      {% for s in sample_prs %}
+      <a class="sample-card" data-pr-url="https://github.com/{{ s.repo }}/pull/{{ s.number }}" data-profile="{{ s.profile_name }}">
+        <div class="pr-title">{{ s.title }}</div>
+        <div class="pr-meta">
+          <span class="reviewer-tag">{{ s.reviewer }}</span>
+          <span class="comment-count">#{{ s.number }} &middot; {{ s.comments }} comments</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    <button class="show-all-btn" onclick="document.getElementById('all-samples').classList.toggle('visible'); this.textContent = this.textContent === 'Show all 22 sample PRs' ? 'Show fewer' : 'Show all 22 sample PRs';">Show all 22 sample PRs</button>
+
+    <div id="all-samples" class="all-samples sample-grid">
+      {% for s in all_sample_prs %}
+      <a class="sample-card" data-pr-url="https://github.com/{{ s.repo }}/pull/{{ s.number }}" data-profile="{{ s.profile_name }}">
+        <div class="pr-title">{{ s.title }}</div>
+        <div class="pr-meta">
+          <span class="reviewer-tag">{{ s.reviewer }}</span>
+          <span class="comment-count">#{{ s.number }} &middot; {{ s.comments }} comments</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   {% if error %}
   <div class="error-box">{{ error }}</div>
@@ -228,9 +283,14 @@
       <div class="dot"></div>
       <h2>Review by {{ profile_name }}</h2>
     </div>
-
+    {% if pr_url %}
+    <div class="compare-bar">
+      <a href="{{ pr_url }}" target="_blank" rel="noopener">View original PR &rarr;</a>
+      <a href="{{ pr_url }}/files" target="_blank" rel="noopener">Files changed</a>
+      <span class="hint">Open in a new tab to compare the AI-generated review with real discussion</span>
+    </div>
+    {% endif %}
     <div class="summary">{{ review.summary }}</div>
-
     {% for c in review.inline_comments %}
     <div class="comment-card">
       <div class="comment-file">
@@ -247,7 +307,6 @@
       <div class="comment-text">{{ c.comment }}</div>
     </div>
     {% endfor %}
-
     {% if review.abstained_files %}
     <div class="abstained">
       <h3>Abstained Files</h3>
@@ -261,5 +320,210 @@
     {% endif %}
   </div>
   {% endif %}
+
+  <script>
+  (function() {
+    var startTime = null;
+    var timerInterval = null;
+
+    function el(id) { return document.getElementById(id); }
+
+    function updateStep(step, status, detail, elapsed) {
+      var icon = el('icon-' + step);
+      var name = el('name-' + step);
+      var det  = el('detail-' + step);
+      var elap = el('elapsed-' + step);
+      if (!icon) return;
+      icon.className = 'step-icon ' + status;
+      icon.textContent = status === 'done' ? '\u2713' : status === 'error' ? '!' : status === 'running' ? '\u25CF' : '\u25CB';
+      name.className = 'step-name ' + status;
+      if (detail) det.textContent = detail;
+      if (elapsed !== undefined && elapsed > 0) elap.textContent = elapsed + 's';
+    }
+
+    function buildReviewDOM(review, prUrl, profileName) {
+      var output = el('review-output');
+      // Clear previous
+      while (output.firstChild) output.removeChild(output.firstChild);
+
+      var container = document.createElement('div');
+      container.className = 'review-container';
+
+      // Header
+      var header = document.createElement('div');
+      header.className = 'review-header';
+      var dot = document.createElement('div');
+      dot.className = 'dot';
+      header.appendChild(dot);
+      var h2 = document.createElement('h2');
+      h2.textContent = 'Review by ' + profileName;
+      header.appendChild(h2);
+      container.appendChild(header);
+
+      // Compare bar
+      if (prUrl) {
+        var bar = document.createElement('div');
+        bar.className = 'compare-bar';
+        var a1 = document.createElement('a');
+        a1.href = prUrl;
+        a1.target = '_blank';
+        a1.rel = 'noopener';
+        a1.textContent = 'View original PR \u2192';
+        bar.appendChild(a1);
+        var a2 = document.createElement('a');
+        a2.href = prUrl + '/files';
+        a2.target = '_blank';
+        a2.rel = 'noopener';
+        a2.textContent = 'Files changed';
+        bar.appendChild(a2);
+        var hint = document.createElement('span');
+        hint.className = 'hint';
+        hint.textContent = 'Open in a new tab to compare the AI-generated review with real discussion';
+        bar.appendChild(hint);
+        container.appendChild(bar);
+      }
+
+      // Summary
+      var summary = document.createElement('div');
+      summary.className = 'summary';
+      summary.textContent = review.summary;
+      container.appendChild(summary);
+
+      // Inline comments
+      if (review.inline_comments && review.inline_comments.length > 0) {
+        review.inline_comments.forEach(function(c) {
+          var card = document.createElement('div');
+          card.className = 'comment-card';
+
+          var fileDiv = document.createElement('div');
+          fileDiv.className = 'comment-file';
+          fileDiv.textContent = c.file + ' ';
+          var badge = document.createElement('span');
+          var pct = Math.round(c.confidence * 100);
+          badge.className = 'confidence ' + (c.confidence >= 0.8 ? 'high' : c.confidence >= 0.5 ? 'medium' : 'low');
+          badge.textContent = pct + '%';
+          fileDiv.appendChild(badge);
+          card.appendChild(fileDiv);
+
+          var snippet = document.createElement('div');
+          snippet.className = 'diff-snippet';
+          snippet.textContent = c.diff_snippet;
+          card.appendChild(snippet);
+
+          var commentText = document.createElement('div');
+          commentText.className = 'comment-text';
+          commentText.textContent = c.comment;
+          card.appendChild(commentText);
+
+          container.appendChild(card);
+        });
+      }
+
+      // Abstained files
+      if (review.abstained_files && review.abstained_files.length > 0) {
+        var abstained = document.createElement('div');
+        abstained.className = 'abstained';
+        var h3 = document.createElement('h3');
+        h3.textContent = 'Abstained Files';
+        abstained.appendChild(h3);
+        var ul = document.createElement('ul');
+        review.abstained_files.forEach(function(f) {
+          var li = document.createElement('li');
+          li.textContent = f;
+          ul.appendChild(li);
+        });
+        abstained.appendChild(ul);
+        if (review.abstention_reason) {
+          var reason = document.createElement('p');
+          reason.style.marginTop = '0.5rem';
+          reason.textContent = review.abstention_reason;
+          abstained.appendChild(reason);
+        }
+        container.appendChild(abstained);
+      }
+
+      output.appendChild(container);
+    }
+
+    function startReview(prUrl, profileName) {
+      // Clear and show progress
+      var output = el('review-output');
+      while (output.firstChild) output.removeChild(output.firstChild);
+      el('progress-panel').style.display = 'block';
+      el('progress-title').textContent = 'Generating review as ' + profileName + '...';
+      el('submit-btn').disabled = true;
+
+      // Reset all steps
+      ['profile', 'fetch', 'context', 'retrieve', 'generate', 'critique', 'filter'].forEach(function(s) {
+        updateStep(s, 'pending', '', undefined);
+      });
+
+      startTime = Date.now();
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(function() {
+        var secs = Math.round((Date.now() - startTime) / 1000);
+        el('progress-title').textContent = 'Generating review as ' + profileName + '... (' + secs + 's)';
+      }, 1000);
+
+      // Connect to SSE
+      var params = new URLSearchParams({ pr_url: prUrl, profile_name: profileName });
+      var evtSource = new EventSource('/review/stream?' + params.toString());
+
+      evtSource.onmessage = function(event) {
+        var data = JSON.parse(event.data);
+
+        if (data.step === 'done') {
+          evtSource.close();
+          clearInterval(timerInterval);
+          var totalSecs = Math.round((Date.now() - startTime) / 1000);
+          el('progress-title').textContent = 'Review complete (' + totalSecs + 's)';
+          el('submit-btn').disabled = false;
+          buildReviewDOM(data.review, prUrl, profileName);
+          el('review-output').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (data.step === 'error') {
+          evtSource.close();
+          clearInterval(timerInterval);
+          el('progress-title').textContent = 'Review failed';
+          el('submit-btn').disabled = false;
+          var errBox = document.createElement('div');
+          errBox.className = 'error-box';
+          errBox.textContent = data.detail;
+          output.appendChild(errBox);
+        } else {
+          updateStep(data.step, data.status, data.detail, data.elapsed);
+        }
+      };
+
+      evtSource.onerror = function() {
+        evtSource.close();
+        clearInterval(timerInterval);
+        el('progress-title').textContent = 'Connection lost';
+        el('submit-btn').disabled = false;
+      };
+    }
+
+    // Form submission
+    el('review-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      var prUrl = el('pr_url').value.trim();
+      var profileName = el('profile_name').value;
+      if (!prUrl) return;
+      startReview(prUrl, profileName);
+    });
+
+    // Sample card clicks
+    document.querySelectorAll('.sample-card').forEach(function(card) {
+      card.addEventListener('click', function(e) {
+        e.preventDefault();
+        var prUrl = this.dataset.prUrl;
+        var profile = this.dataset.profile;
+        el('pr_url').value = prUrl;
+        el('profile_name').value = profile;
+        startReview(prUrl, profile);
+        el('progress-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  })();
+  </script>
 </body>
 </html>

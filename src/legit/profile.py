@@ -33,6 +33,8 @@ def _load_all_items(profile: ProfileConfig) -> list[dict]:
     """Load every JSON file from the profile's data directories.
 
     Each file is expected to contain a JSON array of comment/review objects.
+    Also loads authored_prs.json (PR diffs written by the reviewer) and
+    converts them into items suitable for the map phase.
     Returns a flat list of all items sorted chronologically by created_at.
     """
     items: list[dict] = []
@@ -49,6 +51,27 @@ def _load_all_items(profile: ProfileConfig) -> list[dict]:
             except (json.JSONDecodeError, OSError) as exc:
                 logger.warning("Skipping %s: %s", json_file, exc)
                 continue
+
+            # Special handling for authored_prs.json — convert PR diffs
+            # into items the map phase can analyze for coding style
+            if json_file.name == "authored_prs.json" and isinstance(raw, list):
+                for pr in raw:
+                    if not isinstance(pr, dict):
+                        continue
+                    # Convert to a format the map phase understands
+                    item = {
+                        "_source_file": "authored_prs.json",
+                        "body": (
+                            f"[AUTHORED CODE] PR #{pr.get('number', '?')}: {pr.get('title', '')}\n\n"
+                            f"Files changed: {', '.join(pr.get('files', []))}\n\n"
+                            f"Diff:\n{pr.get('diff', '')[:20_000]}"
+                        ),
+                        "created_at": pr.get("created_at", ""),
+                        "html_url": f"https://github.com/pull/{pr.get('number', '')}",
+                    }
+                    items.append(item)
+                continue
+
             if isinstance(raw, list):
                 for item in raw:
                     if isinstance(item, dict):
@@ -106,10 +129,11 @@ def _date_range(chunk: list[dict]) -> tuple[str, str]:
 
 MAP_SYSTEM_PROMPT = """\
 You are a behavioral analyst studying a code reviewer's patterns. You will be \
-given a batch of their GitHub review comments, issue comments, and PR feedback.
+given a batch of their GitHub review comments, issue comments, PR feedback, \
+and potentially their own authored code changes (commits and PR diffs).
 
-Your job: discover patterns in HOW this person reviews code. Do NOT use a \
-fixed template. Instead, organize your observations by SITUATION — i.e., \
+Your job: discover patterns in HOW this person reviews AND writes code. Do NOT \
+use a fixed template. Instead, organize your observations by SITUATION — i.e., \
 what triggers specific behaviors.
 
 For each situation-pattern you discover, provide:
@@ -125,6 +149,9 @@ Also note:
 - Distinctive verbal habits, recurring phrases, or signature patterns
 - What they choose NOT to comment on (implicit priorities)
 - How their feedback varies by file type or area of code
+- If authored code is included: their coding style, naming conventions, error \
+handling patterns, test coverage practices, and commit message conventions. \
+Understanding how they write code reveals what they expect from others.
 
 Respond with valid JSON only.\
 """
@@ -209,7 +236,7 @@ def _run_map(
 REDUCE_SYSTEM_PROMPT = """\
 You are synthesizing a reviewer profile from multiple batches of behavioral \
 observations. Each batch covers a different time period of the reviewer's \
-GitHub activity.
+GitHub activity, including both their review comments AND their own authored code.
 
 Your task: produce a unified reviewer profile as a Markdown document.
 
@@ -231,6 +258,10 @@ source date range, number of data points analyzed.
 - Preserve situation-specific behaviors — don't over-generalize.
 - Include representative example quotes with enough context to be useful. \
 Format quotes as blockquotes with source context.
+- Include a ## Coding Style section (if authored code data is available) \
+covering: naming conventions, error handling patterns, code structure preferences, \
+test writing patterns, and commit message style. Understanding how they write \
+code reveals what they expect from others during review.
 - End with a section on distinctive traits or habits that make this \
 reviewer recognizable.
 - Write in a practical, concrete tone. This profile will be used by an AI \
@@ -601,6 +632,20 @@ def build_profile(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(profile_markdown + "\n")
     logger.info("Profile written to %s", output_path)
+
+    # 6. Build expertise index (no LLM, pure data extraction)
+    from legit.expertise import build_expertise_index, save_expertise_index
+
+    logger.info("Building expertise index…")
+    for src in profile.sources:
+        expertise_idx = build_expertise_index(profile_name, items, src.repo)
+        idx_path = save_expertise_index(profile_name, expertise_idx)
+        logger.info(
+            "Expertise index: %d directories, %d total comments → %s",
+            len(expertise_idx.entries),
+            expertise_idx.total_comments_analyzed,
+            idx_path,
+        )
 
     return output_path
 

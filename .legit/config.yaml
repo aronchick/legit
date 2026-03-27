@@ -1,19 +1,19 @@
 model:
-  provider: codex
+  provider: claude
   temperature: 0.3
 
 github:
   token_env: GITHUB_TOKEN
 
 profiles:
-  - name: wdbaruni-bacalhau
+  - name: wdbaruni
     sources:
       - type: primary
         repo: bacalhau-project/bacalhau
         username: wdbaruni
     chunk_size: 20
 
-  - name: thockin-k8s
+  - name: thockin
     sources:
       - type: primary
         repo: kubernetes/kubernetes
@@ -21,7 +21,7 @@ profiles:
     chunk_size: 20
     map_concurrency: 4
 
-  - name: liggitt-k8s
+  - name: liggitt
     sources:
       - type: primary
         repo: kubernetes/kubernetes
@@ -29,7 +29,7 @@ profiles:
     chunk_size: 20
     map_concurrency: 4
 
-  - name: bgrant0607-k8s
+  - name: bgrant0607
     sources:
       - type: primary
         repo: kubernetes/kubernetes
@@ -37,7 +37,7 @@ profiles:
     chunk_size: 20
     map_concurrency: 4
 
-  - name: lavalamp-k8s
+  - name: lavalamp
     sources:
       - type: primary
         repo: kubernetes/kubernetes
