@@ -647,6 +647,25 @@ def build_profile(
             idx_path,
         )
 
+    # 7. Build semantic embedding index (optional — requires onnxruntime)
+    from legit.embeddings import is_available as embeddings_available
+
+    if embeddings_available():
+        from legit.embeddings import build_embedding_index, save_embedding_index
+
+        logger.info("Building semantic embedding index…")
+        retrieval_docs = load_raw_data_as_retrieval_docs(config, profile_name)
+        emb_index = build_embedding_index(profile_name, retrieval_docs)
+        emb_path = save_embedding_index(profile_name, emb_index)
+        logger.info(
+            "Embedding index: %d vectors (%d-dim) → %s",
+            len(emb_index.documents),
+            emb_index.vectors.shape[1] if len(emb_index.documents) > 0 else 0,
+            emb_path,
+        )
+    else:
+        logger.info("Skipping embeddings (onnxruntime not installed — use BM25 fallback)")
+
     return output_path
 
 

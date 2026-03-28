@@ -584,26 +584,44 @@ def generate_review(
     diff_hunks = _parse_diff_hunks(pr_data.get("diff", ""))
     queries = construct_queries(diff_hunks)
 
-    # Find the profile config to get temporal_half_life
-    temporal_half_life = 730
-    for pc in config.profiles:
-        if pc.name == profile_name:
-            temporal_half_life = pc.temporal_half_life
-            break
-
     # Collect changed file paths for codebase-specific path boosting
     pr_changed_files = [f.get("filename", "") for f in pr_data.get("files", [])]
 
-    retrieved_docs = retrieve(
-        profile_name=profile_name,
-        queries=queries,
-        top_k=config.retrieval.top_k,
-        type_weights=config.retrieval.type_weights,
-        temporal_half_life=temporal_half_life,
-        pr_changed_files=pr_changed_files,
-    )
+    # Try semantic search first, fall back to BM25
+    from legit.embeddings import is_available as embeddings_available, load_embedding_index
+
+    retrieval_method = "bm25"
+    embedding_index = load_embedding_index(profile_name) if embeddings_available() else None
+
+    if embedding_index and len(embedding_index.documents) > 0:
+        # Semantic retrieval — embed diff hunks and search
+        retrieval_method = "semantic"
+        query_texts = [f"{h.get('file_path', '')} {h.get('content', '')}" for h in diff_hunks]
+        if not query_texts:
+            query_texts = queries  # fallback to BM25-style text queries
+        retrieved_docs = embedding_index.search_as_retrieval_docs(
+            query_texts, top_k=config.retrieval.top_k,
+        )
+        console.print(f"  Retrieved {len(retrieved_docs)} examples via semantic search")
+    else:
+        # BM25 fallback
+        temporal_half_life = 730
+        for pc in config.profiles:
+            if pc.name == profile_name:
+                temporal_half_life = pc.temporal_half_life
+                break
+
+        retrieved_docs = retrieve(
+            profile_name=profile_name,
+            queries=queries,
+            top_k=config.retrieval.top_k,
+            type_weights=config.retrieval.type_weights,
+            temporal_half_life=temporal_half_life,
+            pr_changed_files=pr_changed_files,
+        )
+        console.print(f"  Retrieved {len(retrieved_docs)} examples via BM25")
+
     examples_text = format_examples(retrieved_docs)
-    console.print(f"  Retrieved {len(retrieved_docs)} example comments")
 
     # -- Step 3b: Expertise lookup (pre-built, instant) -----------------------
     expertise_context = ""
