@@ -1,0 +1,786 @@
+{
+  "profile_name": "lavalamp-k8s",
+  "entries": {
+    "kubernetes/kubernetes:staging/src/k8s.io/client-go/tools/cache/synctrack/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/client-go/tools/cache/synctrack/",
+      "comment_count": 7,
+      "severity_distribution": {
+        "observation": 6,
+        "nit": 1
+      },
+      "themes": [
+        {
+          "theme": "testing",
+          "frequency": 4
+        },
+        {
+          "theme": "code organization",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "I've now pushed 2 commits; \"if we use a lock instead\" demonstrates the naive lock impl. The last commit shows the current solution but with singleflight rewritten out (fun exercise).\r\n\r\nI also added a throughput test. The naive lock impl takes 7x as long as the impl in the final commit.",
+          "file": "staging/src/k8s.io/client-go/tools/cache/synctrack/lazy.go",
+          "date": "2023-01-12T00:24:03Z"
+        },
+        {
+          "text": "oh, with the old singleflight impl, it took ~7.7s to run the tests 1000 times (sans throughput test). The current impl is a bit faster at ~7.1s.",
+          "file": "staging/src/k8s.io/client-go/tools/cache/synctrack/lazy.go",
+          "date": "2023-01-12T00:25:22Z"
+        },
+        {
+          "text": "uhhhh I don't think it'll get simpler if I do it another way, but I pushed a test demonstrating another property of this solution while I think",
+          "file": "staging/src/k8s.io/client-go/tools/cache/synctrack/lazy.go",
+          "date": "2023-01-11T22:30:28Z"
+        }
+      ],
+      "last_activity": "2023-03-10T17:34:23Z"
+    },
+    "kubernetes/kubernetes:cmd/fieldnamedocscheck/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "cmd/fieldnamedocscheck/",
+      "comment_count": 3,
+      "severity_distribution": {
+        "observation": 1,
+        "praise": 1,
+        "suggestion": 1
+      },
+      "themes": [
+        {
+          "theme": "naming",
+          "frequency": 4
+        },
+        {
+          "theme": "API design",
+          "frequency": 3
+        },
+        {
+          "theme": "documentation",
+          "frequency": 2
+        },
+        {
+          "theme": "validation",
+          "frequency": 2
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "I don't think this is a reasonable restriction? My guess is that it is fairly common to need to be able to reference the abstract concept that the field is about and that's often the same word as the field name. And it is not obvious how to make an escape sequence that won't show up in the docs.\r\n\r\n",
+          "file": "cmd/fieldnamedocscheck/field_name_docs_check.go",
+          "date": "2023-01-12T23:32:29Z"
+        },
+        {
+          "text": "I suggest adding a linter checking back-tick quoted names first (should have zero false positives).\r\n\r\nThen a manual pass adding back-ticks to the doc strings.\r\n\r\nI don't think it's helpful to even think about a linter for that if we haven't done a manual pass, because even if you could make a good ",
+          "file": "cmd/fieldnamedocscheck/field_name_docs_check.go",
+          "date": "2023-01-13T16:55:00Z"
+        },
+        {
+          "text": "I suggest a) exclude things that aren't names (e.g. don't match something in back ticks if a space is present) and b) compile the regexp once rather than every time the function is called.",
+          "file": "cmd/fieldnamedocscheck/field_name_docs_check.go",
+          "date": "2023-01-17T21:32:26Z"
+        }
+      ],
+      "last_activity": "2023-01-17T21:32:26Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1/",
+      "comment_count": 3,
+      "severity_distribution": {
+        "praise": 1,
+        "observation": 1,
+        "question": 1
+      },
+      "themes": [
+        {
+          "theme": "API design",
+          "frequency": 2
+        },
+        {
+          "theme": "naming",
+          "frequency": 1
+        },
+        {
+          "theme": "documentation",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "hm. It's really not a good sign that the only time this fired, it was a collision between enum value and field name.",
+          "file": "staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1/types.go",
+          "date": "2023-01-19T17:04:46Z"
+        },
+        {
+          "text": "@sftim do you know if there is a specific way API docs should mention enum values?",
+          "file": "staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1/types.go",
+          "date": "2023-01-19T17:18:19Z"
+        },
+        {
+          "text": "but I agree with your fix here.",
+          "file": "staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1/types.go",
+          "date": "2023-01-19T17:16:39Z"
+        }
+      ],
+      "last_activity": "2023-01-19T17:18:19Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/kube-aggregator/pkg/apiserver/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/kube-aggregator/pkg/apiserver/",
+      "comment_count": 7,
+      "severity_distribution": {
+        "observation": 3,
+        "question": 3,
+        "praise": 1
+      },
+      "themes": [
+        {
+          "theme": "testing",
+          "frequency": 3
+        },
+        {
+          "theme": "performance",
+          "frequency": 1
+        },
+        {
+          "theme": "code organization",
+          "frequency": 1
+        },
+        {
+          "theme": "validation",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "If it's only for tests, it doesn't matter, sure. If it's to decide if the cached information is a valid summary of the cluster, then it matters a lot (e.g., for healthz or something).",
+          "file": "staging/src/k8s.io/kube-aggregator/pkg/apiserver/handler_discovery.go",
+          "date": "2023-01-25T01:20:00Z"
+        },
+        {
+          "text": "Something to think about for a followup: why does this package need both an interface and an implementation struct? Why not just an exported implementation struct?",
+          "file": "staging/src/k8s.io/kube-aggregator/pkg/apiserver/handler_discovery_test.go",
+          "date": "2023-01-25T18:11:01Z"
+        },
+        {
+          "text": "if it is for testing can you make it not exported and/or move it to live in the _test.go file?",
+          "file": "staging/src/k8s.io/kube-aggregator/pkg/apiserver/handler_discovery.go",
+          "date": "2023-01-25T01:14:16Z"
+        },
+        {
+          "text": "This will return true on start up before anything gets added, no? That doesn't seem right.",
+          "file": "staging/src/k8s.io/kube-aggregator/pkg/apiserver/handler_discovery.go",
+          "date": "2023-01-25T01:13:24Z"
+        },
+        {
+          "text": "that's unfortunate but I don't think you want external callers of this as it is.",
+          "file": "staging/src/k8s.io/kube-aggregator/pkg/apiserver/handler_discovery.go",
+          "date": "2023-01-25T01:20:42Z"
+        }
+      ],
+      "last_activity": "2023-01-25T18:11:01Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation/",
+      "comment_count": 4,
+      "severity_distribution": {
+        "question": 2,
+        "observation": 2
+      },
+      "themes": [
+        {
+          "theme": "performance",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "I looked at the type and now I'm confused? There's a ton of pointers etc in it, are we clearing everything before storing it (or before reuse)?",
+          "file": "staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation/validation.go",
+          "date": "2023-01-30T18:33:26Z"
+        },
+        {
+          "text": "OK I actually looked down below and I'm surprised that actually avoids an allocation but if so it's pretty cool!",
+          "file": "staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation/validation.go",
+          "date": "2023-01-30T18:35:47Z"
+        },
+        {
+          "text": "No, pools release unused objects after (IIRC) 2 GC passes.",
+          "file": "staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation/validation.go",
+          "date": "2023-01-30T18:20:27Z"
+        },
+        {
+          "text": "Will all of these objects be about the same size?",
+          "file": "staging/src/k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation/validation.go",
+          "date": "2023-01-30T18:19:56Z"
+        }
+      ],
+      "last_activity": "2023-01-30T18:35:47Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/apimachinery/pkg/apis/meta/internalversion/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/apimachinery/pkg/apis/meta/internalversion/",
+      "comment_count": 3,
+      "severity_distribution": {
+        "observation": 2,
+        "praise": 1
+      },
+      "themes": [
+        {
+          "theme": "documentation",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "```suggestion\r\n\t// `sendInitialEvents=true` may be set together with `watch=true`.\r\n\t// In that case, the watch stream will begin with synthetic events to\r\n\t// produce the current state of objects in the collection. Once all such\r\n\t// events have been sent, a synthetic \"Bookmark\" event  will be sent",
+          "file": "staging/src/k8s.io/apimachinery/pkg/apis/meta/internalversion/types.go",
+          "date": "2023-01-30T23:00:35Z"
+        },
+        {
+          "text": "Sorry, I meant to leave this comment on the external version! Good to fix it both places though.",
+          "file": "staging/src/k8s.io/apimachinery/pkg/apis/meta/internalversion/types.go",
+          "date": "2023-01-30T23:01:46Z"
+        },
+        {
+          "text": "422 seems OK, especially if we use that elsewhere.",
+          "file": "staging/src/k8s.io/apimachinery/pkg/apis/meta/internalversion/types.go",
+          "date": "2023-01-30T23:09:20Z"
+        }
+      ],
+      "last_activity": "2023-01-30T23:09:20Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/apimachinery/pkg/apis/meta/v1/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/apimachinery/pkg/apis/meta/v1/",
+      "comment_count": 5,
+      "severity_distribution": {
+        "observation": 3,
+        "question": 2
+      },
+      "themes": [
+        {
+          "theme": "error handling",
+          "frequency": 1
+        },
+        {
+          "theme": "API design",
+          "frequency": 1
+        },
+        {
+          "theme": "documentation",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "```suggestion\r\n\t// When `sendInitialEvents` option is set, we require `resourceVersionMatch`\r\n```",
+          "file": "staging/src/k8s.io/apimachinery/pkg/apis/meta/v1/types.go",
+          "date": "2023-01-30T23:02:12Z"
+        },
+        {
+          "text": "Can you just describe the differences from the scenario in the beginning part of this comment?",
+          "file": "staging/src/k8s.io/apimachinery/pkg/apis/meta/v1/types.go",
+          "date": "2023-01-30T23:04:16Z"
+        },
+        {
+          "text": "```suggestion\r\n\t// - `resourceVersionMatch` = NotOlderThan\r\n```\r\n\r\n(multiple instances below)",
+          "file": "staging/src/k8s.io/apimachinery/pkg/apis/meta/v1/types.go",
+          "date": "2023-01-30T23:02:49Z"
+        },
+        {
+          "text": "Is that really how you used to trigger this behavior? That seems surprising?",
+          "file": "staging/src/k8s.io/apimachinery/pkg/apis/meta/v1/types.go",
+          "date": "2023-01-30T23:06:36Z"
+        },
+        {
+          "text": "Also please use ``` `resourceVersion` ``` when referring to the field.",
+          "file": "staging/src/k8s.io/apimachinery/pkg/apis/meta/v1/types.go",
+          "date": "2023-01-30T23:04:51Z"
+        }
+      ],
+      "last_activity": "2023-01-30T23:06:36Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/client-go/tools/cache/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/client-go/tools/cache/",
+      "comment_count": 21,
+      "severity_distribution": {
+        "question": 4,
+        "observation": 13,
+        "blocking": 1,
+        "suggestion": 3
+      },
+      "themes": [
+        {
+          "theme": "testing",
+          "frequency": 8
+        },
+        {
+          "theme": "documentation",
+          "frequency": 5
+        },
+        {
+          "theme": "code organization",
+          "frequency": 3
+        },
+        {
+          "theme": "naming",
+          "frequency": 2
+        },
+        {
+          "theme": "error handling",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "no, the store's copy is potentially less recent than the copy in the deltas/tombstone.\r\n\r\nI suggest a modification to transform objects prior to putting them in deltas at all, rather than when transferring from deltas to store. This will do extra work since not all deltas will make it all the way to",
+          "file": "staging/src/k8s.io/client-go/tools/cache/controller_test.go",
+          "date": "2023-03-10T17:47:11Z"
+        },
+        {
+          "text": "This is a lot of code to copy from the test above, maybe consider inserting a commit which refactors to make it reusable? (preferably keeping refactoring code and test changing code in separate commits)",
+          "file": "staging/src/k8s.io/client-go/tools/cache/controller_test.go",
+          "date": "2023-03-20T23:07:35Z"
+        },
+        {
+          "text": "You need to test all possible deltas -- add, update, sync (?), and delete. I think this code does the wrong thing if there's a delete already there?",
+          "file": "staging/src/k8s.io/client-go/tools/cache/delta_fifo_test.go",
+          "date": "2023-02-09T18:59:51Z"
+        },
+        {
+          "text": "https://github.com/kubernetes/kubernetes/blob/48c8183fc42f2e64ecfde0c9fa8b03f637392a10/staging/src/k8s.io/client-go/tools/cache/delta_fifo.go#L397",
+          "file": "staging/src/k8s.io/client-go/tools/cache/controller_test.go",
+          "date": "2023-03-13T18:25:28Z"
+        },
+        {
+          "text": "heh, so was the original.\r\n\r\nI updated all the comments to reflect my current beliefs about how it behaves now. It needs tests to verify.",
+          "file": "staging/src/k8s.io/client-go/tools/cache/delta_fifo.go",
+          "date": "2023-03-15T16:20:16Z"
+        }
+      ],
+      "last_activity": "2023-03-22T21:26:47Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/apiserver/pkg/server/filters/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/apiserver/pkg/server/filters/",
+      "comment_count": 6,
+      "severity_distribution": {
+        "question": 1,
+        "observation": 3,
+        "suggestion": 2
+      },
+      "themes": [
+        {
+          "theme": "error handling",
+          "frequency": 6
+        },
+        {
+          "theme": "code organization",
+          "frequency": 2
+        },
+        {
+          "theme": "documentation",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "I was trying to suggest the other order, I think -- this horrible cleanup should trigger a couple seconds after the context has timed out, so that it only races with misbehaved handlers instead of all handlers.",
+          "file": "staging/src/k8s.io/apiserver/pkg/server/filters/timeout.go",
+          "date": "2023-04-04T16:39:47Z"
+        },
+        {
+          "text": "The new behavior no longer calls Fatal at all on these errors? If that is intended, you could have just changed these to e.g. call t.Error() and return.",
+          "file": "staging/src/k8s.io/apiserver/pkg/server/filters/priority-and-fairness_test.go",
+          "date": "2023-02-16T19:38:55Z"
+        },
+        {
+          "text": "I was confused because this isn't calling one of those functions (Error is OK) -- I guess it looks like this change is more about adding the timeout.",
+          "file": "staging/src/k8s.io/apiserver/pkg/server/filters/priority-and-fairness_test.go",
+          "date": "2023-02-16T19:34:05Z"
+        },
+        {
+          "text": "I recommend calling this once and storing it and using it in every iteration rather than starting a new timeout every time through.",
+          "file": "staging/src/k8s.io/apiserver/pkg/server/filters/priority-and-fairness_test.go",
+          "date": "2023-02-16T19:35:23Z"
+        },
+        {
+          "text": "Wouldn't it be simpler to call t.Helper() here instead of refactoring?",
+          "file": "staging/src/k8s.io/apiserver/pkg/server/filters/priority-and-fairness_test.go",
+          "date": "2023-02-16T19:19:37Z"
+        }
+      ],
+      "last_activity": "2023-04-04T16:39:47Z"
+    },
+    "kubernetes/kubernetes:test/e2e/apimachinery/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "test/e2e/apimachinery/",
+      "comment_count": 7,
+      "severity_distribution": {
+        "question": 3,
+        "observation": 3,
+        "suggestion": 1
+      },
+      "themes": [
+        {
+          "theme": "naming",
+          "frequency": 6
+        },
+        {
+          "theme": "testing",
+          "frequency": 1
+        },
+        {
+          "theme": "API design",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "Personally I'd make a struct to hold the namespace and these names, set them once, and use them from the struct always, appending in a dozen different places like this is asking for bugs?",
+          "file": "test/e2e/apimachinery/aggregator.go",
+          "date": "2023-03-02T17:55:36Z"
+        },
+        {
+          "text": "I would go even one step further and:\r\n* also store namespace here\r\n* pass this object around instead of namespace, eg to cleanupSampleAPIServer",
+          "file": "test/e2e/apimachinery/aggregator.go",
+          "date": "2023-03-02T20:51:34Z"
+        },
+        {
+          "text": "Is it possible to combine these tests? It seems unnecessarily resource intensive to set up separate extensions for each of them.",
+          "file": "test/e2e/apimachinery/openapiv3.go",
+          "date": "2023-03-02T18:02:03Z"
+        },
+        {
+          "text": "If you call it 'n' instead of names, maybe you won't feel the need to make a local copy of namespace? :)",
+          "file": "test/e2e/apimachinery/aggregator.go",
+          "date": "2023-03-02T21:33:21Z"
+        },
+        {
+          "text": "I think we want to make it tolerate either string, not only the incorrect \"RESOURCE\"",
+          "file": "test/e2e/apimachinery/crd_publish_openapi.go",
+          "date": "2023-03-15T15:51:12Z"
+        }
+      ],
+      "last_activity": "2023-03-15T15:51:12Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/client-go/tools/remotecommand/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/client-go/tools/remotecommand/",
+      "comment_count": 3,
+      "severity_distribution": {
+        "question": 3
+      },
+      "themes": [
+        {
+          "theme": "validation",
+          "frequency": 2
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "You are right, that's extremely bizarre, I read the createHTTPStreams function, it's super weird.\r\n\r\nThe streams here seem to be from the spdy library, right? Using io.Copy sounds like it should work to me. I'm actually concerned that the race checker is correct and we may have the same problem in p",
+          "file": "staging/src/k8s.io/client-go/tools/remotecommand/remotecommand_test.go",
+          "date": "2023-03-07T20:11:28Z"
+        },
+        {
+          "text": "That's surprising, I think this is what io.Pipe is meant to do. Is it convenient to show me the code that didn't work?\r\n\r\nThe current code of reading everything and then writing everything probably doesn't exercise as many code paths as interleaving reads and writes would.",
+          "file": "staging/src/k8s.io/client-go/tools/remotecommand/remotecommand_test.go",
+          "date": "2023-03-07T17:34:38Z"
+        },
+        {
+          "text": "Can you use https://pkg.go.dev/io#Pipe instead?",
+          "file": "staging/src/k8s.io/client-go/tools/remotecommand/remotecommand_test.go",
+          "date": "2023-03-07T17:14:05Z"
+        }
+      ],
+      "last_activity": "2023-03-07T20:11:28Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/apiserver/pkg/storage/names/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/apiserver/pkg/storage/names/",
+      "comment_count": 12,
+      "severity_distribution": {
+        "suggestion": 5,
+        "question": 4,
+        "observation": 3
+      },
+      "themes": [
+        {
+          "theme": "naming",
+          "frequency": 14
+        },
+        {
+          "theme": "validation",
+          "frequency": 3
+        },
+        {
+          "theme": "security",
+          "frequency": 2
+        },
+        {
+          "theme": "testing",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "argh, I just realized the existing and proposed code both truncate the base name if it's too long, so it doesn't have the problem I thought it did.\r\n\r\nTruncating the base name potentially increases the number of things we can collide with. I'd vote for truncating it by more than just 5 characters if",
+          "file": "staging/src/k8s.io/apiserver/pkg/storage/names/generate_test.go",
+          "date": "2023-03-10T00:49:07Z"
+        },
+        {
+          "text": "A way to do this that might not break things is to make it variable and use the size of the collection to inform how long to make the name. We have a metric for that so it is pretty cheap to check (not sure about easy).\r\n\r\nIf there's < 5000 objects of a type, 5 characters is fine.",
+          "file": "staging/src/k8s.io/apiserver/pkg/storage/names/generate.go",
+          "date": "2023-03-09T18:40:58Z"
+        },
+        {
+          "text": "I think this will break nested name generation, eg deployment makes RS makes pods; we want the pods to get a long suffix but pods that work today might stop working after this because the RS name takes up 5 more characters.",
+          "file": "staging/src/k8s.io/apiserver/pkg/storage/names/generate_test.go",
+          "date": "2023-03-09T18:38:51Z"
+        },
+        {
+          "text": "I suggest using strings.Repeat of a character that's not in the alphabet, so that there can't be flakes by it happening to pick the same character in the off-by-one test. (only needed if you take my other suggestion below)",
+          "file": "staging/src/k8s.io/apiserver/pkg/storage/names/generate_test.go",
+          "date": "2023-03-10T16:47:40Z"
+        },
+        {
+          "text": "ah, if RS doesn't use generateName then it won't have the problem I described. Do we have any other \"thingy makes thingy makes thingy\" relationships?\r\n\r\nDo we think CR / operator authors will do that very often?",
+          "file": "staging/src/k8s.io/apiserver/pkg/storage/names/generate_test.go",
+          "date": "2023-03-10T00:13:33Z"
+        }
+      ],
+      "last_activity": "2023-03-10T22:25:07Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/apiserver/pkg/util/flowcontrol/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/apiserver/pkg/util/flowcontrol/",
+      "comment_count": 3,
+      "severity_distribution": {
+        "question": 2,
+        "observation": 1
+      },
+      "themes": [
+        {
+          "theme": "testing",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "Is it possible to modify the ObserveWaitingDuration function instead of adding this next to it every place?",
+          "file": "staging/src/k8s.io/apiserver/pkg/util/flowcontrol/apf_filter.go",
+          "date": "2023-03-10T22:15:53Z"
+        },
+        {
+          "text": "would you still get enough signal if you made this 50ms to speed the test up 10x?",
+          "file": "staging/src/k8s.io/apiserver/pkg/util/flowcontrol/apf_filter_test.go",
+          "date": "2023-03-10T22:19:54Z"
+        },
+        {
+          "text": "I'd still back it off to +/- 5% tolerance instead of +/- 1%",
+          "file": "staging/src/k8s.io/apiserver/pkg/util/flowcontrol/apf_filter_test.go",
+          "date": "2023-03-10T22:19:04Z"
+        }
+      ],
+      "last_activity": "2023-03-10T22:19:54Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/kube-aggregator/pkg/controllers/openapiv3/aggregator/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/kube-aggregator/pkg/controllers/openapiv3/aggregator/",
+      "comment_count": 6,
+      "severity_distribution": {
+        "suggestion": 1,
+        "observation": 4,
+        "question": 1
+      },
+      "themes": [
+        {
+          "theme": "API design",
+          "frequency": 7
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "I think group and version etc labels on the metrics indicate KRM api paths; the openapi data is still openapi formatted even if it happens to be describing a particular k8s GVR, so it shouldn't go into the metrics as if it is a request for that particular api. Maybe @logicalhan has more or different",
+          "file": "staging/src/k8s.io/kube-aggregator/pkg/controllers/openapiv3/aggregator/aggregator.go",
+          "date": "2023-03-14T23:21:42Z"
+        },
+        {
+          "text": "I don't think the gv need to be in the metrics at all. Don't use subresource or resource fields either, since those are about other things; these are not subresources in the KRM sense used for normal resources.",
+          "file": "staging/src/k8s.io/kube-aggregator/pkg/controllers/openapiv3/aggregator/aggregator.go",
+          "date": "2023-03-14T23:29:19Z"
+        },
+        {
+          "text": "For what purpose? What will we do with such information?\r\n\r\nI think it is 100% fine if openapi v3 requests are high-variance in the metrics.",
+          "file": "staging/src/k8s.io/kube-aggregator/pkg/controllers/openapiv3/aggregator/aggregator.go",
+          "date": "2023-03-14T23:40:49Z"
+        },
+        {
+          "text": "if livez uses subresource, I guess use that. using resource for something that isn't a resource will break queries, I would expect",
+          "file": "staging/src/k8s.io/kube-aggregator/pkg/controllers/openapiv3/aggregator/aggregator.go",
+          "date": "2023-03-14T23:53:37Z"
+        },
+        {
+          "text": "Right, don't put it in at all. There is no need to distinguish openapiv3 requests from each other in the metrics",
+          "file": "staging/src/k8s.io/kube-aggregator/pkg/controllers/openapiv3/aggregator/aggregator.go",
+          "date": "2023-03-14T23:33:11Z"
+        }
+      ],
+      "last_activity": "2023-03-14T23:53:37Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/apiserver/pkg/endpoints/discovery/aggregated/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/apiserver/pkg/endpoints/discovery/aggregated/",
+      "comment_count": 7,
+      "severity_distribution": {
+        "question": 2,
+        "observation": 4,
+        "suggestion": 1
+      },
+      "themes": [
+        {
+          "theme": "API design",
+          "frequency": 1
+        },
+        {
+          "theme": "documentation",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "I suggest a different system.\r\n\r\n```\r\ntype Source uint\r\n\r\nconst (\r\n  BuiltInCRDSource Source = 100\r\n  AggregatedAPISource Source = 200\r\n)\r\n```\r\n\r\nAnd instead of making one group special in terms of precedence, use the rule that the smallest number wins.\r\n\r\nOr something like this.",
+          "file": "staging/src/k8s.io/apiserver/pkg/endpoints/discovery/aggregated/handler.go",
+          "date": "2023-03-21T16:51:45Z"
+        },
+        {
+          "text": "I believe if you have two non-default sources with the same group, this code will use a random source, right? I think it should be deterministic. If source isn't default, I think you should compare key.source with the previously seen source and pick the lexicographically least.",
+          "file": "staging/src/k8s.io/apiserver/pkg/endpoints/discovery/aggregated/handler.go",
+          "date": "2023-03-21T16:43:54Z"
+        },
+        {
+          "text": "If \"default\" means \"from built-ins or CRs\" and everything else is some other source, then I think you have made the opposite choice from our request serving stack -- if AA and CR both have the same group version, the requests go to the AA. So I think it should go the other way.",
+          "file": "staging/src/k8s.io/apiserver/pkg/endpoints/discovery/aggregated/handler.go",
+          "date": "2023-03-21T16:48:38Z"
+        },
+        {
+          "text": "I get that this way you don't have to change the interface, but wouldn't it be good to force all callers to pass a source string?",
+          "file": "staging/src/k8s.io/apiserver/pkg/endpoints/discovery/aggregated/handler.go",
+          "date": "2023-03-21T16:38:15Z"
+        },
+        {
+          "text": "and e.g. leave gaps if there is any chance people will use constants not from this file",
+          "file": "staging/src/k8s.io/apiserver/pkg/endpoints/discovery/aggregated/handler.go",
+          "date": "2023-03-21T17:48:26Z"
+        }
+      ],
+      "last_activity": "2023-03-21T17:48:26Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/apiserver/pkg/storage/cacher/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/apiserver/pkg/storage/cacher/",
+      "comment_count": 4,
+      "severity_distribution": {
+        "suggestion": 1,
+        "nit": 1,
+        "question": 1,
+        "observation": 1
+      },
+      "themes": [
+        {
+          "theme": "naming",
+          "frequency": 1
+        },
+        {
+          "theme": "testing",
+          "frequency": 1
+        },
+        {
+          "theme": "documentation",
+          "frequency": 1
+        },
+        {
+          "theme": "validation",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "I thought about asking you to https://pkg.go.dev/reflect#Value.Slice if the existing slice is already too big, but then I thought that maybe it might be way too big and it's best to let that memory free. It may be worth adding a comment explaining this.",
+          "file": "staging/src/k8s.io/apiserver/pkg/storage/cacher/cacher.go",
+          "date": "2023-04-03T17:58:18Z"
+        },
+        {
+          "text": "nit: you could construct this name via fmt.Sprintf when calling b.Run, and then there would be zero chance it wouldn't match the test case settings.",
+          "file": "staging/src/k8s.io/apiserver/pkg/storage/cacher/cacher_whitebox_test.go",
+          "date": "2023-04-03T18:03:17Z"
+        },
+        {
+          "text": "would the benchmarks be even better if you just omitted this and continued to use append?",
+          "file": "staging/src/k8s.io/apiserver/pkg/storage/cacher/cacher.go",
+          "date": "2023-04-03T18:06:54Z"
+        }
+      ],
+      "last_activity": "2023-04-04T15:52:08Z"
+    },
+    "kubernetes/kubernetes:staging/src/k8s.io/apimachinery/pkg/api/resource/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "staging/src/k8s.io/apimachinery/pkg/api/resource/",
+      "comment_count": 6,
+      "severity_distribution": {
+        "observation": 4,
+        "praise": 1,
+        "suggestion": 1
+      },
+      "themes": [
+        {
+          "theme": "testing",
+          "frequency": 4
+        },
+        {
+          "theme": "error handling",
+          "frequency": 2
+        },
+        {
+          "theme": "documentation",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "I strongly recommend multiplying by a scalar instead (i.e., just a plain int or int64).\r\n\r\nQuantities are implicitly typed (either milliCPU or RAM) and multiplying them together gives units like squared milliCPU (which would be microCPU) or squared bytes. For your use case I think multiplying by a s",
+          "file": "staging/src/k8s.io/apimachinery/pkg/api/resource/quantity.go",
+          "date": "2023-04-26T16:38:02Z"
+        },
+        {
+          "text": "This isn't the thing to do at all (see my other comment), but for future reference, the natural way to multiply two numbers in the form a * b ^ c is just a1*a2 * b^(c1+c2). That is, values multiply and scales add. Great care needs to be taken when values are large.",
+          "file": "staging/src/k8s.io/apimachinery/pkg/api/resource/amount.go",
+          "date": "2023-04-26T16:42:17Z"
+        },
+        {
+          "text": "These last three test cases are very careful to test the cases where the algorithm returns correct answers. Instead, they need to test the cases where the algorithm overflows. I would expect that some overflow can be prevented by changing scale.",
+          "file": "staging/src/k8s.io/apimachinery/pkg/api/resource/amount_test.go",
+          "date": "2023-04-26T16:44:27Z"
+        },
+        {
+          "text": "In addition to my other reason for using a scalar -- I believe changing the format will destroy the property that multiplication needs to give the exact result of repeated addition. I don't think you should do this.",
+          "file": "staging/src/k8s.io/apimachinery/pkg/api/resource/quantity.go",
+          "date": "2023-04-26T16:45:51Z"
+        },
+        {
+          "text": "or if not overflow, it could have a return value indicating when the result is inexact (e.g. because it had to change scale to avoid overflow and repeated addition might get a different final answer).",
+          "file": "staging/src/k8s.io/apimachinery/pkg/api/resource/quantity.go",
+          "date": "2023-04-26T16:58:53Z"
+        }
+      ],
+      "last_activity": "2023-04-26T16:58:53Z"
+    }
+  },
+  "total_comments_analyzed": 130
+}
