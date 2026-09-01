@@ -82,7 +82,17 @@ def load_config(path: Path | None = None) -> LegitConfig:
     raw = yaml.safe_load(config_path.read_text())
     if raw is None:
         raw = {}
-    return LegitConfig.model_validate(raw)
+    cfg = LegitConfig.model_validate(raw)
+
+    # Deployment overrides — lets a server pick its model backend without
+    # dirtying the tracked config file.
+    import os
+
+    if os.environ.get("LEGIT_MODEL_PROVIDER"):
+        cfg.model.provider = os.environ["LEGIT_MODEL_PROVIDER"]
+    if os.environ.get("LEGIT_MODEL_NAME"):
+        cfg.model.name = os.environ["LEGIT_MODEL_NAME"]
+    return cfg
 
 
 def write_default_config(path: Path) -> None:

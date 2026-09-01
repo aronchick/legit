@@ -182,11 +182,32 @@ def _run_codex(prompt: str, model_name: str | None, timeout: int, temperature: f
         return result.stdout.strip()
 
 
+def _run_api(prompt: str, model_name: str | None, timeout: int, temperature: float) -> str:
+    """Call a hosted model directly through litellm (no CLI, no OAuth).
+
+    ``model_name`` is a litellm model string like ``gemini/gemini-2.5-pro``
+    or ``anthropic/claude-sonnet-4-5``; the matching *_API_KEY env var must
+    be set. This is also the serving path for fine-tuned models exposed on
+    OpenAI-compatible endpoints.
+    """
+    import litellm
+
+    resp = litellm.completion(
+        model=model_name or "gemini/gemini-2.5-pro",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=temperature,
+        timeout=timeout,
+    )
+    content = resp.choices[0].message.content  # type: ignore[union-attr]
+    return (content or "").strip()
+
+
 _BACKENDS: dict[str, Callable[..., str]] = {
     "claude": _run_claude,
     "gemini": _run_gemini,
     "codex": _run_codex,
     "openai": _run_codex,
+    "api": _run_api,
 }
 
 
