@@ -246,10 +246,22 @@ def _score_review(
         pr_url=holdout.pr_url,
     )
 
+    # LEGIT_JUDGE_MODEL pins the judge to one model regardless of which
+    # backend generated the review. Without it, each backend judges its own
+    # output and cross-model comparisons are self-preference noise.
+    import os
+
+    judge_config = config.model
+    judge_model = os.environ.get("LEGIT_JUDGE_MODEL")
+    if judge_model:
+        from legit.config import ModelConfig
+
+        judge_config = ModelConfig(provider="api", name=judge_model, temperature=0.0)
+
     result = run_inference(
         system_prompt=_JUDGE_SYSTEM,
         user_prompt=user_prompt,
-        config=config.model,
+        config=judge_config,
         response_model=JudgeOutput,
     )
 

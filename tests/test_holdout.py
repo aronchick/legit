@@ -83,6 +83,44 @@ class TestHoldoutSearchQuery:
         assert "merged:" not in q
 
 
+class TestJudgeModelOverride:
+    def _score(self, monkeypatch):
+        import legit.calibrate as cal
+        from legit.calibrate import HoldoutPR, JudgeOutput, _score_review
+        from legit.config import LegitConfig
+        from legit.models import ReviewOutput
+
+        captured = {}
+
+        def fake_inference(system_prompt, user_prompt, config, response_model=None):
+            captured["config"] = config
+            return JudgeOutput(
+                issue_detection=5, voice_fidelity=5, appropriate_abstention=5, false_positives=5
+            )
+
+        monkeypatch.setattr(cal, "run_inference", fake_inference)
+        holdout = HoldoutPR(
+            pr_url="https://github.com/o/r/pull/1",
+            pr_number=1,
+            pr_title="t",
+            reviewer_comments=[],
+            reviewer_comment_count=0,
+        )
+        _score_review(LegitConfig(), holdout, ReviewOutput(summary="s"))
+        return captured["config"]
+
+    def test_judge_env_pins_model(self, monkeypatch):
+        monkeypatch.setenv("LEGIT_JUDGE_MODEL", "openai/gpt-5.3-codex")
+        cfg = self._score(monkeypatch)
+        assert cfg.provider == "api"
+        assert cfg.name == "openai/gpt-5.3-codex"
+
+    def test_no_env_uses_config_model(self, monkeypatch):
+        monkeypatch.delenv("LEGIT_JUDGE_MODEL", raising=False)
+        cfg = self._score(monkeypatch)
+        assert cfg.provider == "gemini"  # LegitConfig default
+
+
 class TestExistingThreadsWithheld:
     PR_DATA = {
         "metadata": {"title": "Fix thing", "user": {"login": "author"}, "body": "desc"},
