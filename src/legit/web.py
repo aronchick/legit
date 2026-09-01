@@ -27,6 +27,36 @@ app = FastAPI(title="legit", description="PR reviews in a learned reviewer's voi
 _TEMPLATE_PATH = Path(__file__).parent / "templates" / "index.html"
 
 
+@app.middleware("http")
+async def _basic_auth_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
+    """Gate every route behind HTTP basic auth when LEGIT_BASIC_AUTH is set.
+
+    Format: LEGIT_BASIC_AUTH="user:password". Unset means no auth — fine for
+    localhost, required before exposing the UI publicly.
+    """
+    import base64
+    import secrets
+
+    expected = os.environ.get("LEGIT_BASIC_AUTH", "")
+    if expected:
+        header = request.headers.get("authorization", "")
+        ok = False
+        if header.startswith("Basic "):
+            try:
+                supplied = base64.b64decode(header[6:]).decode()
+                ok = secrets.compare_digest(supplied, expected)
+            except Exception:
+                ok = False
+        if not ok:
+            from fastapi.responses import Response
+
+            return Response(
+                status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="legit"'},
+            )
+    return await call_next(request)
+
+
 # ---------------------------------------------------------------------------
 # Sample PRs — real K8s PRs with substantial review discussion
 # ---------------------------------------------------------------------------
