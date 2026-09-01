@@ -183,20 +183,30 @@ def _run_codex(prompt: str, model_name: str | None, timeout: int, temperature: f
 
 
 def _run_api(prompt: str, model_name: str | None, timeout: int, temperature: float) -> str:
-    """Call a hosted model directly through litellm (no CLI, no OAuth).
+    """Call a hosted or self-hosted model directly through litellm (no CLI).
 
-    ``model_name`` is a litellm model string like ``gemini/gemini-3.1-pro-preview``
-    or ``anthropic/claude-sonnet-4-5``; the matching *_API_KEY env var must
-    be set. This is also the serving path for fine-tuned models exposed on
-    OpenAI-compatible endpoints.
+    ``model_name`` is a litellm model string — e.g. ``openai/gpt-5.3-codex``,
+    ``anthropic/claude-sonnet-5``, ``gemini/gemini-3.1-pro-preview``, or
+    ``ollama_chat/qwen3-coder:30b`` for a local ollama server. Hosted
+    providers need their *_API_KEY env var; ``LEGIT_MODEL_API_BASE`` points
+    at a non-default endpoint (remote ollama, vLLM, or a fine-tuned model on
+    an OpenAI-compatible server).
     """
+    import os
+
     import litellm
+
+    kwargs: dict = {}
+    api_base = os.environ.get("LEGIT_MODEL_API_BASE")
+    if api_base:
+        kwargs["api_base"] = api_base
 
     resp = litellm.completion(
         model=model_name or "gemini/gemini-3.1-pro-preview",
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
         timeout=timeout,
+        **kwargs,
     )
     content = resp.choices[0].message.content  # type: ignore[union-attr]
     return (content or "").strip()

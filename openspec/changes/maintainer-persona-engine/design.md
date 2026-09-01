@@ -44,22 +44,29 @@ style evolution and near-duplicate threads across the boundary.
 
 ## D3. Model and serving
 
-Start with a hosted LoRA fine-tune of an open-weights code model (Qwen2.5-Coder-14B class;
-32B if 14B voice quality disappoints). Rationale: frontier-lab models can't be fine-tuned on
-personal corpora; open-weights + LoRA is cheap enough to iterate per persona.
+*(Revised 2026-09-01 after live verification of available models and hardware.)*
 
-Serving goes through any OpenAI-compatible endpoint. `model_runner.py` already routes via
-litellm, so a persona model is:
+**Generation/judge models (hosted, verified live against each API):** `openai/gpt-5.3-codex`
+(newest code model on the existing OpenAI key), `gemini/gemini-3.1-pro-preview` (current
+Gemini Pro; 2.5-pro is retired for new API users), and `anthropic/claude-sonnet-5` /
+`claude-opus-5` once an ANTHROPIC_API_KEY is provisioned. The `api` provider in
+`model_runner.py` reaches all of these through litellm; `LEGIT_MODEL_PROVIDER` /
+`LEGIT_MODEL_NAME` / `LEGIT_MODEL_API_BASE` select the backend per deployment. Hardcoded
+model names rot in months — verify against the provider's live model list before changing
+defaults.
 
-```yaml
-model:
-  provider: openai-compatible
-  base_url: https://.../v1
-  model_name: legit-hashimoto-v1
-```
+**Self-hosting (real option, not hypothetical):** the hetzner box has an RTX 4000 SFF Ada
+(20GB VRAM, CUDA 12.8), 20 cores, 62GB RAM, and ollama installed. A Qwen3-Coder-30B-class
+MoE runs there today via `ollama_chat/qwen3-coder:30b` with zero API keys — useful as a
+free/fallback backend and as the serving substrate for Phase 2 persona LoRAs. Caveat:
+review prompts run 100-400KB, so long-context KV cache spills past 20GB into RAM; fine for
+experiments and smaller PRs, but frontier hosted models remain the quality bar for the
+generation step.
 
-No new abstraction. The CLI-backend path (claude/gemini/codex) is untouched and remains the
-default for the prompt+retrieval mode.
+**Fine-tune target:** LoRA on the current open-weights coder family (Qwen3-Coder class at
+time of writing — re-verify what's current when Phase 2 starts, not from memory). Train
+hosted or on rented GPU; serve on the hetzner GPU via ollama/vLLM on an OpenAI-compatible
+endpoint, which the `api` provider already speaks.
 
 ## D4. Calibration as the decision gate
 
