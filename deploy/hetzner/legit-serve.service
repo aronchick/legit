@@ -1,0 +1,13 @@
+[Unit]
+Description=legit web UI (reviewer persona PR reviews)
+After=network.target
+
+[Service]
+WorkingDirectory=/home/daaronch/code/legit
+ExecStart=/home/daaronch/.local/bin/uv run legit serve --host 127.0.0.1 --port 8142
+Restart=always
+RestartSec=5
+Environment=PATH=/home/daaronch/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=default.target
