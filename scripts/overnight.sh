@@ -20,7 +20,10 @@ for user in thockin liggitt; do
         n=$(unfetched "$user")
         echo "=== [$user] fetch round $round: $n items pending ==="
         [ "$n" = "0" ] && break
-        uv run legit fetch --repo kubernetes/kubernetes --user "$user" || true
+        # --skip-reviews: the list-all-PRs review indexing path is brutally
+        # slow on kubernetes-scale repos and inline review comments already
+        # arrive via the search-based pr_comments fetch.
+        uv run legit fetch --repo kubernetes/kubernetes --user "$user" --skip-reviews || true
     done
     n=$(unfetched "$user")
     [ "$n" != "0" ] && echo "WARNING: [$user] still $n unfetched after 5 rounds; building with partial corpus"
