@@ -30,9 +30,9 @@ def test_run_api_passes_model_and_strips(monkeypatch):
     import litellm
 
     monkeypatch.setattr(litellm, "completion", fake_completion)
-    out = _run_api("prompt text", "gemini/gemini-2.5-pro", 300, 0.3)
+    out = _run_api("prompt text", "gemini/gemini-3.1-pro-preview", 300, 0.3)
     assert out == "hello from api"
-    assert captured["model"] == "gemini/gemini-2.5-pro"
+    assert captured["model"] == "gemini/gemini-3.1-pro-preview"
     assert captured["messages"] == [{"role": "user", "content": "prompt text"}]
     assert captured["temperature"] == 0.3
 
@@ -48,7 +48,7 @@ def test_run_api_defaults_model(monkeypatch):
 
     monkeypatch.setattr(litellm, "completion", fake_completion)
     _run_api("p", None, 300, 0.0)
-    assert captured["model"] == "gemini/gemini-2.5-pro"
+    assert captured["model"] == "gemini/gemini-3.1-pro-preview"
 
 
 def test_env_overrides_model_provider(tmp_path: Path, monkeypatch):
@@ -56,10 +56,10 @@ def test_env_overrides_model_provider(tmp_path: Path, monkeypatch):
     cfg_path.write_text(yaml.dump({"model": {"provider": "claude"}}))
 
     monkeypatch.setenv("LEGIT_MODEL_PROVIDER", "api")
-    monkeypatch.setenv("LEGIT_MODEL_NAME", "gemini/gemini-2.5-pro")
+    monkeypatch.setenv("LEGIT_MODEL_NAME", "gemini/gemini-3.1-pro-preview")
     cfg = load_config(cfg_path)
     assert cfg.model.provider == "api"
-    assert cfg.model.name == "gemini/gemini-2.5-pro"
+    assert cfg.model.name == "gemini/gemini-3.1-pro-preview"
 
 
 def test_no_env_overrides_keeps_config(tmp_path: Path, monkeypatch):
