@@ -236,6 +236,7 @@ def _build_user_prompt(
     pr_data: dict,
     context_files: dict[str, str] | None = None,
     expertise_context: str = "",
+    include_existing_threads: bool = True,
 ) -> str:
     metadata = pr_data["metadata"]
     title = metadata.get("title", "(untitled)")
@@ -257,10 +258,15 @@ def _build_user_prompt(
     if len(diff) > max_diff_chars:
         diff = diff[:max_diff_chars] + "\n... (diff truncated)"
 
-    existing_threads = _format_existing_threads(
-        pr_data.get("comments", []),
-        pr_data.get("reviews", []),
-    )
+    if include_existing_threads:
+        existing_threads = _format_existing_threads(
+            pr_data.get("comments", []),
+            pr_data.get("reviews", []),
+        )
+    else:
+        # Calibration mode: the real reviewer's comments live on this PR, and
+        # showing them would let the model copy its own answer key.
+        existing_threads = "(existing discussion withheld)"
 
     # Budget allocation for context sections (total prompt target: <400KB)
     # Diff: 120KB, codebase context: 200KB, expertise: 3KB, other: ~10KB
@@ -553,6 +559,7 @@ def generate_review(
     pr_url: str,
     dry_run: bool = True,
     output_path: Path | None = None,
+    include_existing_threads: bool = True,
 ) -> ReviewOutput:
     """Generate a PR review in the voice of *profile_name*.
 
@@ -659,6 +666,7 @@ def generate_review(
         pr_data,
         context_files=context_files,
         expertise_context=expertise_context,
+        include_existing_threads=include_existing_threads,
     )
 
     # -- Step 5: Generate review via LLM -------------------------------------
@@ -684,10 +692,13 @@ def generate_review(
 
     # -- Step 6: Self-critique pass ------------------------------------------
     console.print("[bold]Running self-critique...[/]")
-    existing_threads = _format_existing_threads(
-        pr_data.get("comments", []),
-        pr_data.get("reviews", []),
-    )
+    if include_existing_threads:
+        existing_threads = _format_existing_threads(
+            pr_data.get("comments", []),
+            pr_data.get("reviews", []),
+        )
+    else:
+        existing_threads = "(existing discussion withheld)"
     review = _run_self_critique(config, review, examples_text, existing_threads)
     console.print(f"  After critique: {len(review.inline_comments)} comments remain")
 

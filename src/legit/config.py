@@ -52,6 +52,11 @@ class CalibrationConfig(BaseModel):
     holdout_count: int = 15
     max_iterations: int = 5
     target_score: float = 8.0
+    # Temporal train/eval split: profile builds only use activity strictly
+    # before this date (YYYY-MM-DD); calibration only evaluates PRs created
+    # and merged on/after it. Without it, retrieval can surface the reviewer's
+    # real comments on the PR being evaluated.
+    holdout_after: str | None = None
 
 
 class LegitConfig(BaseModel):

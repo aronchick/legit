@@ -51,3 +51,11 @@ retrieval:
 review:
   post_to_github: false
   abstention_threshold: 0.5
+
+calibration:
+  # Train/eval boundary: builds only use activity before this date; calibrate
+  # only evaluates PRs created+merged on/after it. Pre-existing embeddings
+  # and expertise indexes were fetched 2026-03-25..28, so they sit safely
+  # inside the training window.
+  holdout_after: "2026-04-01"
+  holdout_count: 10

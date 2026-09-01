@@ -28,6 +28,27 @@ def _data_dirs_for_profile(profile: ProfileConfig) -> list[Path]:
     return dirs
 
 
+def _filter_items_before(items: list[dict], before: str | None) -> list[dict]:
+    """Drop items created on/after *before* (YYYY-MM-DD) for temporal holdout.
+
+    ISO-8601 timestamps compare correctly as strings. Items without a
+    created_at are kept — they only occur in old data.
+    """
+    if not before:
+        return items
+    kept = []
+    for item in items:
+        created = (
+            item.get("created_at")
+            or item.get("submitted_at")
+            or (item.get("commit", {}).get("author") or {}).get("date")
+        )
+        if created and str(created) >= before:
+            continue
+        kept.append(item)
+    return kept
+
+
 def _load_all_items(profile: ProfileConfig) -> list[dict]:
     """Load every JSON file from the profile's data directories.
 
@@ -391,6 +412,30 @@ def _profile_path(profile_name: str) -> Path:
     return _profiles_dir() / f"{profile_name}.md"
 
 
+def _profile_meta_path(profile_name: str) -> Path:
+    return _profiles_dir() / f"{profile_name}.meta.json"
+
+
+def save_profile_meta(profile_name: str, holdout_after: str | None) -> None:
+    """Stamp build metadata so calibration knows the training-data boundary."""
+    _profiles_dir().mkdir(parents=True, exist_ok=True)
+    meta = {"holdout_after": holdout_after}
+    _profile_meta_path(profile_name).write_text(json.dumps(meta, indent=2) + "\n")
+
+
+def load_profile_holdout(profile_name: str) -> str | None:
+    """Return the holdout_after boundary stamped at build time, if any."""
+    path = _profile_meta_path(profile_name)
+    if not path.exists():
+        return None
+    try:
+        meta = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    value = meta.get("holdout_after")
+    return str(value) if value else None
+
+
 # ---------------------------------------------------------------------------
 # Raw data -> RetrievalDocument conversion
 # ---------------------------------------------------------------------------
@@ -470,6 +515,7 @@ def _extract_pr_number(item: dict) -> int | None:
 def load_raw_data_as_retrieval_docs(
     config: LegitConfig,
     profile_name: str,
+    before: str | None = None,
 ) -> list[RetrievalDocument]:
     """Load all raw GitHub data for a profile and convert to RetrievalDocument objects.
 
@@ -478,7 +524,7 @@ def load_raw_data_as_retrieval_docs(
     format suitable for BM25 indexing and few-shot retrieval.
     """
     profile = _find_profile(config, profile_name)
-    items = _load_all_items(profile)
+    items = _filter_items_before(_load_all_items(profile), before)
     docs: list[RetrievalDocument] = []
 
     for item in items:
@@ -531,6 +577,7 @@ def build_profile(
     profile_name: str,
     rebuild_map: bool = False,
     max_chunks: int | None = None,
+    before: str | None = None,
 ) -> Path:
     """Build a reviewer profile using map-reduce over their GitHub history.
 
@@ -559,7 +606,9 @@ def build_profile(
 
     # 1. Load all data
     logger.info("Loading data for profile '%s'…", profile_name)
-    items = _load_all_items(profile)
+    items = _filter_items_before(_load_all_items(profile), before)
+    if before:
+        logger.info("Temporal holdout: only using items created before %s", before)
     if not items:
         raise RuntimeError(
             f"No data found for profile '{profile_name}'. "

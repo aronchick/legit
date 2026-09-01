@@ -18,6 +18,7 @@ from legit.config import LegitConfig, legit_path
 from legit.github_client import GitHubClient
 from legit.model_runner import run_inference
 from legit.models import ReviewOutput
+from legit.profile import load_profile_holdout
 
 logger = logging.getLogger(__name__)
 
@@ -79,14 +80,20 @@ def find_holdout_prs(
     repo: str,
     username: str,
     count: int = 10,
+    merged_after: str | None = None,
 ) -> list[HoldoutPR]:
     """Find recent PRs where this reviewer left substantive inline comments.
 
     These become our ground truth — we know exactly what the reviewer said,
     so we can compare against what legit generates.
+
+    When *merged_after* is set, only PRs created AND merged on/after that date
+    qualify, so nothing the profile trained on can appear in the eval set.
     """
     # Search for PRs this user reviewed with comments
     q = f"repo:{owner}/{repo} is:pr is:merged reviewed-by:{username} comments:>3"
+    if merged_after:
+        q += f" created:>={merged_after} merged:>={merged_after}"
     resp = gh._transport.get(
         "/search/issues",
         params={"q": q, "per_page": min(count * 3, 100), "sort": "created", "order": "desc"},
@@ -305,10 +312,23 @@ def run_calibration(
     src = profile_cfg.sources[0]
     owner, repo = src.repo.split("/", 1)
 
+    # Temporal holdout boundary: prefer the cutoff stamped at build time,
+    # fall back to config. Without one, eval PRs may overlap training data.
+    holdout_after = load_profile_holdout(profile_name) or config.calibration.holdout_after
+    if holdout_after:
+        logger.info("Holdout boundary: only evaluating PRs created+merged >= %s", holdout_after)
+    else:
+        logger.warning(
+            "No holdout_after boundary set — eval PRs may overlap the training corpus. "
+            "Rebuild with 'legit build --holdout-after YYYY-MM-DD'."
+        )
+
     # Step 1: Find holdout PRs (or use provided ones)
     if not holdouts:
         with GitHubClient(config.github) as gh:
-            holdouts = find_holdout_prs(gh, owner, repo, src.username, count=holdout_count)
+            holdouts = find_holdout_prs(
+                gh, owner, repo, src.username, count=holdout_count, merged_after=holdout_after
+            )
 
     if not holdouts:
         raise RuntimeError(f"No holdout PRs found for {src.username} in {src.repo}")
@@ -326,12 +346,14 @@ def run_calibration(
         )
 
         try:
-            # Generate review
+            # Generate review. Existing threads are withheld — the ground-truth
+            # comments live on these PRs and must not reach the prompt.
             generated = generate_review(
                 config=config,
                 profile_name=profile_name,
                 pr_url=holdout.pr_url,
                 dry_run=True,
+                include_existing_threads=False,
             )
 
             # Score against ground truth

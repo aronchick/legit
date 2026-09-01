@@ -175,10 +175,19 @@ def build(
     concurrency: int | None = typer.Option(
         None, "--concurrency", "-j", help="Number of parallel map workers (overrides config)."
     ),
+    holdout_after: str | None = typer.Option(
+        None,
+        "--holdout-after",
+        help=(
+            "Temporal holdout boundary (YYYY-MM-DD): only train on activity before this "
+            "date so calibration can evaluate on PRs after it. Defaults to "
+            "calibration.holdout_after from config."
+        ),
+    ),
 ) -> None:
     """Generate a reviewer profile and BM25 retrieval index."""
     from legit.config import load_config
-    from legit.profile import build_profile, load_raw_data_as_retrieval_docs
+    from legit.profile import build_profile, load_raw_data_as_retrieval_docs, save_profile_meta
     from legit.retrieval import build_index
 
     try:
@@ -218,13 +227,20 @@ def build(
     if concurrency is not None:
         profile_cfg.map_concurrency = concurrency
 
+    # Resolve temporal holdout boundary (CLI flag wins over config)
+    cutoff = holdout_after or cfg.calibration.holdout_after
+    if cutoff:
+        console.print(f"[dim]Temporal holdout: training only on activity before {cutoff}[/]")
+
     # Phase 1+2: Map-Reduce (build profile)
     console.print(f"\n[bold]Building profile: {profile_name}[/]")
     console.print(
         f"[dim]Phase 1/2: Map-Reduce — {profile_cfg.map_concurrency} parallel workers...[/]"
     )
     try:
-        build_profile(cfg, profile_name, rebuild_map=rebuild_map, max_chunks=max_chunks)
+        build_profile(
+            cfg, profile_name, rebuild_map=rebuild_map, max_chunks=max_chunks, before=cutoff
+        )
     except Exception as exc:
         console.print(f"[red]Map-reduce failed: {exc}[/]")
         import traceback
@@ -236,12 +252,15 @@ def build(
     # Phase 3: Build BM25 index
     console.print("[dim]Phase 2/2: Building BM25 retrieval index...[/]")
     try:
-        docs = load_raw_data_as_retrieval_docs(cfg, profile_name)
+        docs = load_raw_data_as_retrieval_docs(cfg, profile_name, before=cutoff)
         index_path = build_index(profile_name, docs)
         console.print(f"[green]  Index saved to {index_path}[/]")
     except Exception as exc:
         console.print(f"[red]Index build failed: {exc}[/]")
         raise typer.Exit(code=1)
+
+    # Stamp the boundary so calibrate only evaluates PRs the build never saw
+    save_profile_meta(profile_name, cutoff)
 
     console.print(f"\n[green]Profile '{profile_name}' built successfully.[/]")
 
