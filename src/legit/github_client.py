@@ -6,7 +6,7 @@ import json
 import os
 import re
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -130,14 +130,18 @@ class GitHubTransport:
             # Rate-limited (primary or secondary)
             if resp.status_code == 403 and "rate limit" in resp.text.lower():
                 wait = self._rate_limit_wait(resp, attempt)
-                console.print(f"[yellow]Rate limited. Waiting {wait:.0f}s (attempt {attempt + 1})…[/]")
+                console.print(
+                    f"[yellow]Rate limited. Waiting {wait:.0f}s (attempt {attempt + 1})…[/]"
+                )
                 time.sleep(wait)
                 continue
 
             # 5xx — transient
             if resp.status_code >= 500:
-                wait = BACKOFF_BASE ** attempt
-                console.print(f"[yellow]Server error {resp.status_code}. Retrying in {wait:.0f}s…[/]")
+                wait = BACKOFF_BASE**attempt
+                console.print(
+                    f"[yellow]Server error {resp.status_code}. Retrying in {wait:.0f}s…[/]"
+                )
                 time.sleep(wait)
                 continue
 
@@ -238,9 +242,7 @@ def get_token(cfg: GitHubConfig) -> str:
     """Read the PAT from the environment variable named in config."""
     token = os.environ.get(cfg.token_env, "")
     if not token:
-        raise EnvironmentError(
-            f"GitHub token not found. Set the {cfg.token_env} environment variable."
-        )
+        raise OSError(f"GitHub token not found. Set the {cfg.token_env} environment variable.")
     return token
 
 
@@ -281,7 +283,9 @@ class GitHubClient:
     # Index all activity
     # -----------------------------------------------------------------------
 
-    def index_activity(self, repo: str, username: str, skip_reviews: bool = False, since: str | None = None) -> list[IndexEntry]:
+    def index_activity(
+        self, repo: str, username: str, skip_reviews: bool = False, since: str | None = None
+    ) -> list[IndexEntry]:
         """Index every discoverable activity type for *username* in *repo*.
 
         Resumes from cursor state if a previous run was interrupted.
@@ -322,9 +326,17 @@ class GitHubClient:
                 seen=seen,
             )
         except Exception as exc:
-            console.print(f"[yellow]  List endpoint failed ({exc}), falling back to search-based fetch...[/]")
+            console.print(
+                f"[yellow]  List endpoint failed ({exc}), falling back to search-based fetch...[/]"
+            )
             self._index_pr_comments_via_search(
-                owner, name, username, since, _cursor("pr_comments"), index, seen,
+                owner,
+                name,
+                username,
+                since,
+                _cursor("pr_comments"),
+                index,
+                seen,
             )
 
         # -- Issue comments -------------------------------------------------
@@ -359,7 +371,13 @@ class GitHubClient:
         self._index_endpoint(
             key="issues",
             endpoint=f"/repos/{owner}/{name}/issues",
-            params={"creator": username, "sort": "created", "direction": "asc", "state": "all", **({"since": since} if since else {})},
+            params={
+                "creator": username,
+                "sort": "created",
+                "direction": "asc",
+                "state": "all",
+                **({"since": since} if since else {}),
+            },
             username=username,
             user_field=None,  # filtered by creator param
             entry_type="issue",
@@ -553,13 +571,18 @@ class GitHubClient:
 
         # Collect file paths to fetch
         changed_files = [
-            f.get("filename", "")
-            for f in pr_data.get("files", [])
-            if f.get("filename")
+            f.get("filename", "") for f in pr_data.get("files", []) if f.get("filename")
         ]
 
         # Also look for key project files in the same directories
-        key_filenames = {"README.md", "OWNERS", "go.mod", "Cargo.toml", "package.json", "pyproject.toml"}
+        key_filenames = {
+            "README.md",
+            "OWNERS",
+            "go.mod",
+            "Cargo.toml",
+            "package.json",
+            "pyproject.toml",
+        }
         dirs_seen: set[str] = set()
         extra_paths: list[str] = []
         for fpath in changed_files:
@@ -625,13 +648,15 @@ class GitHubClient:
                 )
                 files = files_resp.json() if isinstance(files_resp.json(), list) else []
 
-                results.append({
-                    "number": pr_num,
-                    "title": item.get("title", ""),
-                    "diff": diff_text[:50_000],  # Cap per-PR diff size
-                    "files": [f.get("filename", "") for f in files],
-                    "created_at": item.get("created_at", ""),
-                })
+                results.append(
+                    {
+                        "number": pr_num,
+                        "title": item.get("title", ""),
+                        "diff": diff_text[:50_000],  # Cap per-PR diff size
+                        "files": [f.get("filename", "") for f in files],
+                        "created_at": item.get("created_at", ""),
+                    }
+                )
             except Exception:
                 continue
 
@@ -681,7 +706,7 @@ class GitHubClient:
                 continue
 
             created_raw = self._resolve_field(item, created_field)
-            created_at = _parse_dt(created_raw) if created_raw else datetime.now(tz=timezone.utc)
+            created_at = _parse_dt(created_raw) if created_raw else datetime.now(tz=UTC)
             updated_raw = item.get("updated_at")
             updated_at = _parse_dt(updated_raw) if updated_raw else None
 
@@ -738,7 +763,7 @@ class GitHubClient:
             console.print("[dim]Skipping pr_comments via search (already complete)[/]")
             return
 
-        console.print(f"Indexing [bold]pr_comments[/] via search API…")
+        console.print("Indexing [bold]pr_comments[/] via search API…")
 
         # Search for PRs where this user commented
         q = f"commenter:{username} repo:{owner}/{repo} type:pr"
@@ -787,13 +812,15 @@ class GitHubClient:
                     if uid in seen:
                         continue
                     created_raw = comment.get("created_at")
-                    created_at = _parse_dt(created_raw) if created_raw else datetime.now(tz=timezone.utc)
+                    created_at = _parse_dt(created_raw) if created_raw else datetime.now(tz=UTC)
                     entry = IndexEntry(
                         id=cid,
                         type="pr_comment",
                         url=comment.get("url", ""),
                         created_at=created_at,
-                        updated_at=_parse_dt(comment.get("updated_at")) if comment.get("updated_at") else None,
+                        updated_at=_parse_dt(comment.get("updated_at"))
+                        if comment.get("updated_at")
+                        else None,
                         pr_number=pr_num,
                     )
                     index.append(entry)
@@ -856,7 +883,7 @@ class GitHubClient:
                     continue
 
                 created_raw = rev.get("submitted_at") or rev.get("created_at")
-                created_at = _parse_dt(created_raw) if created_raw else datetime.now(tz=timezone.utc)
+                created_at = _parse_dt(created_raw) if created_raw else datetime.now(tz=UTC)
 
                 entry = IndexEntry(
                     id=rid,
@@ -946,7 +973,7 @@ class GitHubClient:
 def _parse_dt(raw: str | None) -> datetime:
     """Parse an ISO-8601 datetime string from the GitHub API."""
     if not raw:
-        return datetime.now(tz=timezone.utc)
+        return datetime.now(tz=UTC)
     # GitHub returns e.g. '2024-01-15T08:30:00Z'
     cleaned = raw.replace("Z", "+00:00")
     return datetime.fromisoformat(cleaned)

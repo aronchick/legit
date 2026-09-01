@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import httpx
 import pytest
 
 from legit.config import GitHubConfig
@@ -20,7 +18,6 @@ from legit.github_client import (
     get_token,
     parse_pr_url,
 )
-
 
 # ---------------------------------------------------------------------------
 # parse_pr_url()
@@ -35,17 +32,13 @@ class TestParsePrUrl:
         assert num == 42
 
     def test_url_with_files_suffix(self):
-        owner, repo, num = parse_pr_url(
-            "https://github.com/octocat/hello-world/pull/123/files"
-        )
+        owner, repo, num = parse_pr_url("https://github.com/octocat/hello-world/pull/123/files")
         assert owner == "octocat"
         assert repo == "hello-world"
         assert num == 123
 
     def test_api_url(self):
-        owner, repo, num = parse_pr_url(
-            "https://api.github.com/repos/octocat/hello-world/pulls/99"
-        )
+        owner, repo, num = parse_pr_url("https://api.github.com/repos/octocat/hello-world/pulls/99")
         assert owner == "octocat"
         assert repo == "hello-world"
         assert num == 99
@@ -141,15 +134,13 @@ class TestNextLink:
         resp = MagicMock()
         resp.headers = {
             "Link": '<https://api.github.com/repos/o/r/pulls?page=2>; rel="next", '
-                    '<https://api.github.com/repos/o/r/pulls?page=10>; rel="last"'
+            '<https://api.github.com/repos/o/r/pulls?page=10>; rel="last"'
         }
         assert _next_link(resp) == "https://api.github.com/repos/o/r/pulls?page=2"
 
     def test_without_next_link(self):
         resp = MagicMock()
-        resp.headers = {
-            "Link": '<https://api.github.com/repos/o/r/pulls?page=1>; rel="prev"'
-        }
+        resp.headers = {"Link": '<https://api.github.com/repos/o/r/pulls?page=1>; rel="prev"'}
         assert _next_link(resp) is None
 
     def test_no_link_header(self):

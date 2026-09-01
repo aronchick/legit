@@ -8,8 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-import time
-from typing import Any, Callable, Iterator, Optional, Union
+from collections.abc import Callable
 
 import litellm
 from litellm import CustomLLM, ModelResponse
@@ -215,7 +214,7 @@ class CLIBackedProvider(CustomLLM):
         litellm_params=None,
         logger_fn=None,
         headers={},
-        timeout: Optional[Union[float]] = None,
+        timeout: float | None = None,
         client=None,
     ) -> ModelResponse:
         # Parse provider/model from the model string.
@@ -241,9 +240,7 @@ class CLIBackedProvider(CustomLLM):
 _provider_instance = CLIBackedProvider()
 
 for _name in _BACKENDS:
-    litellm.custom_provider_map.append(
-        {"provider": _name, "custom_handler": _provider_instance}
-    )
+    litellm.custom_provider_map.append({"provider": _name, "custom_handler": _provider_instance})
 
 
 # ---------------------------------------------------------------------------
@@ -306,8 +303,7 @@ def run_inference(
     provider = config.provider
     if provider not in _BACKENDS:
         raise ValueError(
-            f"Provider {provider!r} is not supported. "
-            f"Available: {', '.join(sorted(_BACKENDS))}"
+            f"Provider {provider!r} is not supported. Available: {', '.join(sorted(_BACKENDS))}"
         )
 
     # --- Build the full prompt ------------------------------------------------
@@ -318,9 +314,7 @@ def run_inference(
     user_section = user_prompt
     if response_model is not None:
         schema = json.dumps(response_model.model_json_schema(), indent=2)
-        user_section += (
-            f"\n\nRespond with valid JSON matching this schema:\n```json\n{schema}\n```"
-        )
+        user_section += f"\n\nRespond with valid JSON matching this schema:\n```json\n{schema}\n```"
     full_prompt_parts.append(user_section)
 
     full_prompt = "\n\n".join(full_prompt_parts)

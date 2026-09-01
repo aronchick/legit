@@ -5,12 +5,11 @@ from __future__ import annotations
 import json
 import math
 import re
-import string
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from legit.config import LEGIT_DIR, RetrievalConfig
+from legit.config import LEGIT_DIR
 from legit.models import RetrievalDocument
 
 # ---------------------------------------------------------------------------
@@ -18,13 +17,73 @@ from legit.models import RetrievalDocument
 # ---------------------------------------------------------------------------
 
 _STOP_WORDS: set[str] = {
-    "a", "an", "and", "are", "as", "at", "be", "but", "by", "do", "for",
-    "from", "had", "has", "have", "he", "her", "his", "how", "i", "if",
-    "in", "into", "is", "it", "its", "just", "me", "my", "no", "not",
-    "of", "on", "or", "our", "out", "own", "say", "she", "so", "some",
-    "than", "that", "the", "them", "then", "there", "these", "they",
-    "this", "to", "too", "up", "us", "very", "was", "we", "were", "what",
-    "when", "which", "who", "will", "with", "would", "you", "your",
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "but",
+    "by",
+    "do",
+    "for",
+    "from",
+    "had",
+    "has",
+    "have",
+    "he",
+    "her",
+    "his",
+    "how",
+    "i",
+    "if",
+    "in",
+    "into",
+    "is",
+    "it",
+    "its",
+    "just",
+    "me",
+    "my",
+    "no",
+    "not",
+    "of",
+    "on",
+    "or",
+    "our",
+    "out",
+    "own",
+    "say",
+    "she",
+    "so",
+    "some",
+    "than",
+    "that",
+    "the",
+    "them",
+    "then",
+    "there",
+    "these",
+    "they",
+    "this",
+    "to",
+    "too",
+    "up",
+    "us",
+    "very",
+    "was",
+    "we",
+    "were",
+    "what",
+    "when",
+    "which",
+    "who",
+    "will",
+    "with",
+    "would",
+    "you",
+    "your",
 }
 
 _SPLIT_RE = re.compile(r"[^a-z0-9]+")
@@ -39,6 +98,7 @@ def tokenize(text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # BM25 Index
 # ---------------------------------------------------------------------------
+
 
 class BM25Index:
     """Pure-Python BM25 index backed by a JSON file on disk.
@@ -164,6 +224,7 @@ class BM25Index:
 # Index construction helper (called by ``legit build``)
 # ---------------------------------------------------------------------------
 
+
 def build_index(profile_name: str, documents: list[RetrievalDocument]) -> Path:
     """Build and persist a BM25 index for *profile_name*.
 
@@ -177,6 +238,7 @@ def build_index(profile_name: str, documents: list[RetrievalDocument]) -> Path:
 # ---------------------------------------------------------------------------
 # Query construction
 # ---------------------------------------------------------------------------
+
 
 def construct_queries(diff_hunks: list[dict]) -> list[str]:
     """Build retrieval queries from PR diff hunks.
@@ -219,6 +281,7 @@ def construct_queries(diff_hunks: list[dict]) -> list[str]:
 # Retrieval
 # ---------------------------------------------------------------------------
 
+
 def _recency_weight(timestamp_str: str, half_life_days: int) -> float:
     """Exponential decay weight: ``exp(-ln(2) * age_days / half_life)``."""
     if not timestamp_str:
@@ -226,8 +289,8 @@ def _recency_weight(timestamp_str: str, half_life_days: int) -> float:
     try:
         ts = datetime.fromisoformat(timestamp_str)
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        now = datetime.now(timezone.utc)
+            ts = ts.replace(tzinfo=UTC)
+        now = datetime.now(UTC)
         age_days = max((now - ts).total_seconds() / 86400, 0.0)
     except (ValueError, TypeError):
         return 1.0
@@ -330,6 +393,7 @@ def retrieve(
 # ---------------------------------------------------------------------------
 # Prompt formatting
 # ---------------------------------------------------------------------------
+
 
 def format_examples(docs: list[RetrievalDocument]) -> str:
     """Format retrieved documents as few-shot examples for the review prompt.

@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from legit.config import LegitConfig, ProfileConfig, ProfileSource, ReviewConfig
 from legit.models import InlineComment, ReviewOutput
@@ -21,7 +18,6 @@ from legit.review import (
     _run_self_critique,
     generate_review,
 )
-
 
 # ---------------------------------------------------------------------------
 # _parse_diff_hunks()
@@ -181,9 +177,7 @@ class TestFormatExistingThreads:
         assert "LGTM" in result
 
     def test_with_comments(self):
-        comments = [
-            {"body": "Fix this typo", "user": {"login": "reviewer2"}, "path": "main.py"}
-        ]
+        comments = [{"body": "Fix this typo", "user": {"login": "reviewer2"}, "path": "main.py"}]
         result = _format_existing_threads(comments, [])
         assert "[reviewer2]" in result
         assert "(main.py)" in result
@@ -206,17 +200,50 @@ class TestSelfCritique:
         review = ReviewOutput(
             summary="Test",
             inline_comments=[
-                InlineComment(file="a.py", hunk_header="@@", diff_snippet="+x", comment="Good comment", confidence=0.9),
-                InlineComment(file="b.py", hunk_header="@@", diff_snippet="+y", comment="Bad comment", confidence=0.8),
-                InlineComment(file="c.py", hunk_header="@@", diff_snippet="+z", comment="Covered comment", confidence=0.7),
+                InlineComment(
+                    file="a.py",
+                    hunk_header="@@",
+                    diff_snippet="+x",
+                    comment="Good comment",
+                    confidence=0.9,
+                ),
+                InlineComment(
+                    file="b.py",
+                    hunk_header="@@",
+                    diff_snippet="+y",
+                    comment="Bad comment",
+                    confidence=0.8,
+                ),
+                InlineComment(
+                    file="c.py",
+                    hunk_header="@@",
+                    diff_snippet="+z",
+                    comment="Covered comment",
+                    confidence=0.7,
+                ),
             ],
         )
 
         critique = CritiqueOutput(
             assessments=[
-                CritiqueItem(comment_index=0, would_reviewer_leave_this="yes", phrasing_sounds_like_them="yes", already_covered="no"),
-                CritiqueItem(comment_index=1, would_reviewer_leave_this="no", phrasing_sounds_like_them="close", already_covered="no"),
-                CritiqueItem(comment_index=2, would_reviewer_leave_this="probably", phrasing_sounds_like_them="yes", already_covered="yes"),
+                CritiqueItem(
+                    comment_index=0,
+                    would_reviewer_leave_this="yes",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="no",
+                ),
+                CritiqueItem(
+                    comment_index=1,
+                    would_reviewer_leave_this="no",
+                    phrasing_sounds_like_them="close",
+                    already_covered="no",
+                ),
+                CritiqueItem(
+                    comment_index=2,
+                    would_reviewer_leave_this="probably",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="yes",
+                ),
             ]
         )
         mock_inference.return_value = critique
@@ -233,12 +260,19 @@ class TestSelfCritique:
         review = ReviewOutput(
             summary="Test",
             inline_comments=[
-                InlineComment(file="a.py", hunk_header="@@", diff_snippet="+x", comment="OK", confidence=0.9),
+                InlineComment(
+                    file="a.py", hunk_header="@@", diff_snippet="+x", comment="OK", confidence=0.9
+                ),
             ],
         )
         critique = CritiqueOutput(
             assessments=[
-                CritiqueItem(comment_index=0, would_reviewer_leave_this="yes", phrasing_sounds_like_them="yes", already_covered="no"),
+                CritiqueItem(
+                    comment_index=0,
+                    would_reviewer_leave_this="yes",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="no",
+                ),
             ]
         )
         mock_inference.return_value = critique
@@ -258,7 +292,9 @@ class TestSelfCritique:
         review = ReviewOutput(
             summary="Test",
             inline_comments=[
-                InlineComment(file="a.py", hunk_header="@@", diff_snippet="+x", comment="OK", confidence=0.9),
+                InlineComment(
+                    file="a.py", hunk_header="@@", diff_snippet="+x", comment="OK", confidence=0.9
+                ),
             ],
         )
         mock_inference.return_value = "raw text not structured"
@@ -277,9 +313,15 @@ class TestApplyFilters:
         review = ReviewOutput(
             summary="Test",
             inline_comments=[
-                InlineComment(file="a.py", hunk_header="@@", diff_snippet="+x", comment="High", confidence=0.9),
-                InlineComment(file="b.py", hunk_header="@@", diff_snippet="+y", comment="Low", confidence=0.3),
-                InlineComment(file="c.py", hunk_header="@@", diff_snippet="+z", comment="Mid", confidence=0.5),
+                InlineComment(
+                    file="a.py", hunk_header="@@", diff_snippet="+x", comment="High", confidence=0.9
+                ),
+                InlineComment(
+                    file="b.py", hunk_header="@@", diff_snippet="+y", comment="Low", confidence=0.3
+                ),
+                InlineComment(
+                    file="c.py", hunk_header="@@", diff_snippet="+z", comment="Mid", confidence=0.5
+                ),
             ],
         )
         config = LegitConfig(review=ReviewConfig(abstention_threshold=0.5))
@@ -289,7 +331,13 @@ class TestApplyFilters:
 
     def test_max_comments_cap(self):
         comments = [
-            InlineComment(file=f"f{i}.py", hunk_header="@@", diff_snippet=f"+{i}", comment=f"C{i}", confidence=0.9 - i * 0.05)
+            InlineComment(
+                file=f"f{i}.py",
+                hunk_header="@@",
+                diff_snippet=f"+{i}",
+                comment=f"C{i}",
+                confidence=0.9 - i * 0.05,
+            )
             for i in range(10)
         ]
         review = ReviewOutput(summary="Test", inline_comments=comments)
@@ -302,10 +350,18 @@ class TestApplyFilters:
 
     def test_threshold_and_cap_combined(self):
         comments = [
-            InlineComment(file="a.py", hunk_header="@@", diff_snippet="+a", comment="A", confidence=0.9),
-            InlineComment(file="b.py", hunk_header="@@", diff_snippet="+b", comment="B", confidence=0.8),
-            InlineComment(file="c.py", hunk_header="@@", diff_snippet="+c", comment="C", confidence=0.2),
-            InlineComment(file="d.py", hunk_header="@@", diff_snippet="+d", comment="D", confidence=0.7),
+            InlineComment(
+                file="a.py", hunk_header="@@", diff_snippet="+a", comment="A", confidence=0.9
+            ),
+            InlineComment(
+                file="b.py", hunk_header="@@", diff_snippet="+b", comment="B", confidence=0.8
+            ),
+            InlineComment(
+                file="c.py", hunk_header="@@", diff_snippet="+c", comment="C", confidence=0.2
+            ),
+            InlineComment(
+                file="d.py", hunk_header="@@", diff_snippet="+d", comment="D", confidence=0.7
+            ),
         ]
         review = ReviewOutput(summary="Test", inline_comments=comments)
         config = LegitConfig(review=ReviewConfig(abstention_threshold=0.5, max_comments=2))
@@ -317,7 +373,9 @@ class TestApplyFilters:
 
     def test_no_filters(self):
         comments = [
-            InlineComment(file="a.py", hunk_header="@@", diff_snippet="+a", comment="A", confidence=0.1),
+            InlineComment(
+                file="a.py", hunk_header="@@", diff_snippet="+a", comment="A", confidence=0.1
+            ),
         ]
         review = ReviewOutput(summary="Test", inline_comments=comments)
         config = LegitConfig(review=ReviewConfig(abstention_threshold=0.0, max_comments=None))
@@ -328,7 +386,9 @@ class TestApplyFilters:
         review = ReviewOutput(
             summary="My summary",
             inline_comments=[
-                InlineComment(file="a.py", hunk_header="@@", diff_snippet="+a", comment="A", confidence=0.9),
+                InlineComment(
+                    file="a.py", hunk_header="@@", diff_snippet="+a", comment="A", confidence=0.9
+                ),
             ],
             abstained_files=["vendor/"],
             abstention_reason="vendor code",

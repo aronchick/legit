@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
 from pathlib import Path
 
 from legit.config import LegitConfig, ProfileConfig, legit_path
@@ -220,7 +219,9 @@ def _run_map(
         return result
 
     # Fallback: LLM returned raw text instead of parsed model
-    logger.warning("Map phase returned raw text for chunk %d; wrapping as raw observation", chunk_index)
+    logger.warning(
+        "Map phase returned raw text for chunk %d; wrapping as raw observation", chunk_index
+    )
     return ChunkObservation(
         date_range_start=date_start,
         date_range_end=date_end,
@@ -517,9 +518,7 @@ def _find_profile(config: LegitConfig, profile_name: str) -> ProfileConfig:
         if p.name == profile_name:
             return p
     available = [p.name for p in config.profiles]
-    raise ValueError(
-        f"Profile '{profile_name}' not found in config. Available: {available}"
-    )
+    raise ValueError(f"Profile '{profile_name}' not found in config. Available: {available}")
 
 
 # ---------------------------------------------------------------------------
@@ -598,7 +597,9 @@ def build_profile(
         concurrency = min(profile.map_concurrency, len(pending))
         logger.info(
             "Processing %d uncached chunks (%d workers, %d already cached)",
-            len(pending), concurrency, len(chunks) - len(pending),
+            len(pending),
+            concurrency,
+            len(chunks) - len(pending),
         )
 
         def _process_chunk(idx_chunk: tuple[int, list[dict]]) -> tuple[int, ChunkObservation]:
@@ -624,7 +625,9 @@ def build_profile(
         final_observations.append(obs)
 
     # 4. Reduce phase
-    logger.info("Running reduce phase — synthesizing %d chunk observations…", len(final_observations))
+    logger.info(
+        "Running reduce phase — synthesizing %d chunk observations…", len(final_observations)
+    )
     profile_markdown = _run_reduce(config, final_observations, profile, total_items)
 
     # 5. Write output

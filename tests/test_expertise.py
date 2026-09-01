@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 
 from legit.expertise import (
-    ExpertiseEntry,
     ExpertiseIndex,
     build_expertise_index,
     classify_severity,
@@ -17,7 +15,6 @@ from legit.expertise import (
     lookup_expertise,
     save_expertise_index,
 )
-
 
 # ---------------------------------------------------------------------------
 # Severity classification
@@ -63,20 +60,73 @@ class TestClassifySeverity:
 def sample_raw_items() -> list[dict]:
     """Sample PR comments with paths and bodies."""
     return [
-        {"path": "pkg/api/types.go", "body": "This is an API regression, must fix before merge.", "_source_file": "pr_comments.json", "created_at": "2024-01-10T10:00:00Z"},
-        {"path": "pkg/api/types.go", "body": "nit: rename this field for clarity", "_source_file": "pr_comments.json", "created_at": "2024-02-15T10:00:00Z"},
-        {"path": "pkg/api/validation.go", "body": "Consider adding validation for negative values", "_source_file": "pr_comments.json", "created_at": "2024-03-20T10:00:00Z"},
-        {"path": "pkg/api/defaults.go", "body": "The defaulting behavior here is inconsistent with the API spec", "_source_file": "pr_comments.json", "created_at": "2024-04-01T10:00:00Z"},
-        {"path": "pkg/scheduler/queue.go", "body": "Nice optimization of the priority queue", "_source_file": "pr_comments.json", "created_at": "2024-05-10T10:00:00Z"},
-        {"path": "pkg/scheduler/queue.go", "body": "Have you considered the performance impact on large clusters?", "_source_file": "pr_comments.json", "created_at": "2024-06-15T10:00:00Z"},
-        {"path": "pkg/scheduler/queue.go", "body": "This needs error handling for the nil case", "_source_file": "pr_comments.json", "created_at": "2024-07-20T10:00:00Z"},
+        {
+            "path": "pkg/api/types.go",
+            "body": "This is an API regression, must fix before merge.",
+            "_source_file": "pr_comments.json",
+            "created_at": "2024-01-10T10:00:00Z",
+        },
+        {
+            "path": "pkg/api/types.go",
+            "body": "nit: rename this field for clarity",
+            "_source_file": "pr_comments.json",
+            "created_at": "2024-02-15T10:00:00Z",
+        },
+        {
+            "path": "pkg/api/validation.go",
+            "body": "Consider adding validation for negative values",
+            "_source_file": "pr_comments.json",
+            "created_at": "2024-03-20T10:00:00Z",
+        },
+        {
+            "path": "pkg/api/defaults.go",
+            "body": "The defaulting behavior here is inconsistent with the API spec",
+            "_source_file": "pr_comments.json",
+            "created_at": "2024-04-01T10:00:00Z",
+        },
+        {
+            "path": "pkg/scheduler/queue.go",
+            "body": "Nice optimization of the priority queue",
+            "_source_file": "pr_comments.json",
+            "created_at": "2024-05-10T10:00:00Z",
+        },
+        {
+            "path": "pkg/scheduler/queue.go",
+            "body": "Have you considered the performance impact on large clusters?",
+            "_source_file": "pr_comments.json",
+            "created_at": "2024-06-15T10:00:00Z",
+        },
+        {
+            "path": "pkg/scheduler/queue.go",
+            "body": "This needs error handling for the nil case",
+            "_source_file": "pr_comments.json",
+            "created_at": "2024-07-20T10:00:00Z",
+        },
         # Below threshold (only 2 comments)
-        {"path": "cmd/kube-apiserver/app.go", "body": "Fix the flag name", "_source_file": "pr_comments.json", "created_at": "2024-08-01T10:00:00Z"},
-        {"path": "cmd/kube-apiserver/app.go", "body": "Add a deprecation notice", "_source_file": "pr_comments.json", "created_at": "2024-09-01T10:00:00Z"},
+        {
+            "path": "cmd/kube-apiserver/app.go",
+            "body": "Fix the flag name",
+            "_source_file": "pr_comments.json",
+            "created_at": "2024-08-01T10:00:00Z",
+        },
+        {
+            "path": "cmd/kube-apiserver/app.go",
+            "body": "Add a deprecation notice",
+            "_source_file": "pr_comments.json",
+            "created_at": "2024-09-01T10:00:00Z",
+        },
         # Issue (should be skipped)
-        {"body": "This is a bug report", "_source_file": "issues.json", "created_at": "2024-10-01T10:00:00Z"},
+        {
+            "body": "This is a bug report",
+            "_source_file": "issues.json",
+            "created_at": "2024-10-01T10:00:00Z",
+        },
         # No path (should be skipped)
-        {"body": "General comment without path", "_source_file": "pr_comments.json", "created_at": "2024-11-01T10:00:00Z"},
+        {
+            "body": "General comment without path",
+            "_source_file": "pr_comments.json",
+            "created_at": "2024-11-01T10:00:00Z",
+        },
     ]
 
 
@@ -125,7 +175,9 @@ class TestBuildExpertiseIndex:
         assert idx.total_comments_analyzed == 0
 
     def test_repo_field_set(self, sample_raw_items: list[dict]):
-        idx = build_expertise_index("test", sample_raw_items, "kubernetes/kubernetes", min_comments=3)
+        idx = build_expertise_index(
+            "test", sample_raw_items, "kubernetes/kubernetes", min_comments=3
+        )
         for entry in idx.entries.values():
             assert entry.repo == "kubernetes/kubernetes"
 
@@ -136,7 +188,9 @@ class TestBuildExpertiseIndex:
 
 
 class TestPersistence:
-    def test_save_load_roundtrip(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sample_raw_items: list[dict]):
+    def test_save_load_roundtrip(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sample_raw_items: list[dict]
+    ):
         root = tmp_path / ".legit"
         root.mkdir()
         monkeypatch.setattr("legit.expertise.legit_path", lambda: root)

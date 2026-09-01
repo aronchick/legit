@@ -16,8 +16,6 @@ import logging
 import os
 from pathlib import Path
 
-from pydantic import BaseModel, Field
-
 from legit.config import legit_path
 from legit.models import RetrievalDocument
 
@@ -63,8 +61,7 @@ def _ensure_model() -> tuple:
 
     if not _HAS_DEPS:
         raise ImportError(
-            "Embedding dependencies not installed. "
-            "Run: uv pip install legit[embeddings]"
+            "Embedding dependencies not installed. Run: uv pip install legit[embeddings]"
         )
 
     model_path = _model_dir()
@@ -101,6 +98,7 @@ def _download_model(model_path: Path) -> None:
     }
 
     import shutil
+
     for remote, local in files.items():
         dl_path = hf_hub_download(
             repo_id=MODEL_REPO,
@@ -118,7 +116,7 @@ def _download_model(model_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def embed_texts(texts: list[str]) -> "np.ndarray":
+def embed_texts(texts: list[str]) -> np.ndarray:
     """Embed a batch of texts into 384-dim normalized vectors.
 
     Returns a numpy array of shape (len(texts), 384).
@@ -133,11 +131,14 @@ def embed_texts(texts: list[str]) -> "np.ndarray":
     attention_mask = np.array([e.attention_mask for e in encoded], dtype=np.int64)
     token_type_ids = np.zeros_like(input_ids, dtype=np.int64)
 
-    outputs = session.run(None, {
-        "input_ids": input_ids,
-        "attention_mask": attention_mask,
-        "token_type_ids": token_type_ids,
-    })
+    outputs = session.run(
+        None,
+        {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        },
+    )
 
     # Mean pooling over token embeddings
     token_embeddings = outputs[0]
@@ -162,12 +163,12 @@ class EmbeddingIndex:
 
     def __init__(
         self,
-        vectors: "np.ndarray",
+        vectors: np.ndarray,
         documents: list[dict],
         profile_name: str = "",
     ):
-        self.vectors = vectors          # (N, 384)
-        self.documents = documents      # metadata per vector
+        self.vectors = vectors  # (N, 384)
+        self.documents = documents  # metadata per vector
         self.profile_name = profile_name
 
     def search(self, query_texts: list[str], top_k: int = 10) -> list[dict]:
@@ -202,21 +203,25 @@ class EmbeddingIndex:
         results.sort(key=lambda x: -x[0])
         return [doc for _, doc in results[:top_k]]
 
-    def search_as_retrieval_docs(self, query_texts: list[str], top_k: int = 10) -> list[RetrievalDocument]:
+    def search_as_retrieval_docs(
+        self, query_texts: list[str], top_k: int = 10
+    ) -> list[RetrievalDocument]:
         """Search and return results as RetrievalDocument objects."""
         raw = self.search(query_texts, top_k)
         docs = []
         for d in raw:
-            docs.append(RetrievalDocument(
-                comment_text=d.get("comment_text", ""),
-                file_path=d.get("file_path", ""),
-                code_context=d.get("code_context", ""),
-                comment_type=d.get("comment_type", "pr_review"),
-                severity=d.get("severity", "unknown"),
-                timestamp=d.get("timestamp", ""),
-                reviewer_username=d.get("reviewer_username", ""),
-                pr_number=d.get("pr_number"),
-            ))
+            docs.append(
+                RetrievalDocument(
+                    comment_text=d.get("comment_text", ""),
+                    file_path=d.get("file_path", ""),
+                    code_context=d.get("code_context", ""),
+                    comment_type=d.get("comment_type", "pr_review"),
+                    severity=d.get("severity", "unknown"),
+                    timestamp=d.get("timestamp", ""),
+                    reviewer_username=d.get("reviewer_username", ""),
+                    pr_number=d.get("pr_number"),
+                )
+            )
         return docs
 
 
@@ -279,15 +284,17 @@ def save_embedding_index(profile_name: str, index: EmbeddingIndex) -> Path:
     path.mkdir(parents=True, exist_ok=True)
 
     np.savez_compressed(path / "vectors.npz", vectors=index.vectors)
-    (path / "metadata.json").write_text(
-        json.dumps(index.documents, indent=2, default=str) + "\n"
-    )
+    (path / "metadata.json").write_text(json.dumps(index.documents, indent=2, default=str) + "\n")
     (path / "model_info.json").write_text(
-        json.dumps({
-            "model": MODEL_REPO,
-            "embedding_dim": EMBEDDING_DIM,
-            "document_count": len(index.documents),
-        }, indent=2) + "\n"
+        json.dumps(
+            {
+                "model": MODEL_REPO,
+                "embedding_dim": EMBEDDING_DIM,
+                "document_count": len(index.documents),
+            },
+            indent=2,
+        )
+        + "\n"
     )
 
     return path

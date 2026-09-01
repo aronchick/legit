@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
-import math
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -20,7 +18,6 @@ from legit.retrieval import (
     retrieve,
     tokenize,
 )
-
 
 # ---------------------------------------------------------------------------
 # tokenize()
@@ -321,19 +318,19 @@ class TestPathBoost:
 class TestRecencyWeight:
     def test_recent_gets_high_weight(self):
         # 1 day ago
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ts = (now - timedelta(days=1)).isoformat()
         w = _recency_weight(ts, half_life_days=730)
         assert w > 0.99
 
     def test_old_gets_low_weight(self):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ts = (now - timedelta(days=3650)).isoformat()  # 10 years ago
         w = _recency_weight(ts, half_life_days=730)
         assert w < 0.1
 
     def test_at_half_life(self):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ts = (now - timedelta(days=730)).isoformat()
         w = _recency_weight(ts, half_life_days=730)
         assert w == pytest.approx(0.5, abs=0.05)
@@ -345,12 +342,12 @@ class TestRecencyWeight:
         assert _recency_weight("not-a-date", half_life_days=730) == 1.0
 
     def test_zero_half_life(self):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ts = (now - timedelta(days=100)).isoformat()
         assert _recency_weight(ts, half_life_days=0) == 1.0
 
     def test_negative_half_life(self):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         ts = (now - timedelta(days=100)).isoformat()
         assert _recency_weight(ts, half_life_days=-10) == 1.0
 
@@ -361,7 +358,9 @@ class TestRecencyWeight:
 
 
 class TestRetrieve:
-    def test_retrieve_returns_top_k(self, legit_dir: Path, sample_retrieval_docs: list[RetrievalDocument]):
+    def test_retrieve_returns_top_k(
+        self, legit_dir: Path, sample_retrieval_docs: list[RetrievalDocument]
+    ):
         idx = BM25Index()
         idx.build(sample_retrieval_docs)
         idx.save("testuser")
@@ -483,16 +482,12 @@ class TestFormatExamples:
         assert "Comment B" in result
 
     def test_no_code_context(self):
-        docs = [
-            RetrievalDocument(comment_text="Nice work!", comment_type="issue_comment")
-        ]
+        docs = [RetrievalDocument(comment_text="Nice work!", comment_type="issue_comment")]
         result = format_examples(docs)
         assert "Code:" not in result
 
     def test_no_reviewer_username(self):
-        docs = [
-            RetrievalDocument(comment_text="Fix this.", comment_type="pr_review")
-        ]
+        docs = [RetrievalDocument(comment_text="Fix this.", comment_type="pr_review")]
         result = format_examples(docs)
         assert "Reviewer:" not in result
 

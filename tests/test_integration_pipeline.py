@@ -7,16 +7,15 @@ BM25 retrieval → prompt construction → (mocked) LLM inference → self-criti
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
-from legit.config import LegitConfig, load_config
+from legit.config import load_config
 from legit.models import InlineComment, RetrievalDocument, ReviewOutput
-from legit.retrieval import build_index, retrieve, construct_queries, format_examples
+from legit.retrieval import build_index, construct_queries, format_examples, retrieve
 from legit.review import (
     CritiqueItem,
     CritiqueOutput,
@@ -26,7 +25,6 @@ from legit.review import (
     generate_review,
     load_profile,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -47,17 +45,13 @@ def integration_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "profiles": [
             {
                 "name": "alice-reviewer",
-                "sources": [
-                    {"type": "primary", "repo": "acme/webapp", "username": "alice"}
-                ],
+                "sources": [{"type": "primary", "repo": "acme/webapp", "username": "alice"}],
                 "chunk_size": 20,
                 "temporal_half_life": 365,
             },
             {
                 "name": "bob-reviewer",
-                "sources": [
-                    {"type": "primary", "repo": "acme/api", "username": "bob"}
-                ],
+                "sources": [{"type": "primary", "repo": "acme/api", "username": "bob"}],
                 "chunk_size": 20,
             },
         ],
@@ -186,12 +180,12 @@ SAMPLE_PR = {
         "+func ValidateRequest(next http.Handler) http.Handler {\n"
         "+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n"
         "+        if r.Body == nil {\n"
-        "+            http.Error(w, \"missing request body\", http.StatusBadRequest)\n"
+        '+            http.Error(w, "missing request body", http.StatusBadRequest)\n'
         "+            return\n"
         "+        }\n"
         "+        var body map[string]interface{}\n"
         "+        if err := json.NewDecoder(r.Body).Decode(&body); err != nil {\n"
-        "+            http.Error(w, \"invalid JSON\", http.StatusBadRequest)\n"
+        '+            http.Error(w, "invalid JSON", http.StatusBadRequest)\n'
         "+            return\n"
         "+        }\n"
         "+        // TODO: validate fields\n"
@@ -204,7 +198,7 @@ SAMPLE_PR = {
         "@@ -0,0 +1,20 @@\n"
         "+package middleware\n"
         "+\n"
-        "+import \"testing\"\n"
+        '+import "testing"\n'
         "+\n"
         "+func TestValidateRequest_NilBody(t *testing.T) {\n"
         "+    // test nil body returns 400\n"
@@ -247,7 +241,9 @@ class TestConfigIntegration:
 
 
 class TestRetrievalIntegration:
-    def test_build_and_query_index(self, integration_env: Path, alice_retrieval_docs: list[RetrievalDocument]):
+    def test_build_and_query_index(
+        self, integration_env: Path, alice_retrieval_docs: list[RetrievalDocument]
+    ):
         # Build index from documents
         index_path = build_index("alice-reviewer", alice_retrieval_docs)
         assert index_path.exists()
@@ -276,7 +272,9 @@ class TestRetrievalIntegration:
             assert isinstance(doc, RetrievalDocument)
             assert doc.comment_text != ""
 
-    def test_format_examples_roundtrip(self, integration_env: Path, alice_retrieval_docs: list[RetrievalDocument]):
+    def test_format_examples_roundtrip(
+        self, integration_env: Path, alice_retrieval_docs: list[RetrievalDocument]
+    ):
         build_index("alice-reviewer", alice_retrieval_docs)
 
         hunks = _parse_diff_hunks(SAMPLE_PR["diff"])
@@ -302,7 +300,9 @@ class TestRetrievalIntegration:
 
 
 class TestPromptIntegration:
-    def test_full_prompt_construction(self, integration_env: Path, alice_retrieval_docs: list[RetrievalDocument]):
+    def test_full_prompt_construction(
+        self, integration_env: Path, alice_retrieval_docs: list[RetrievalDocument]
+    ):
         profile_text = load_profile("alice-reviewer")
         examples_text = format_examples(alice_retrieval_docs[:3])
 
@@ -323,7 +323,11 @@ class TestPromptIntegration:
     def test_prompt_with_existing_threads(self, integration_env: Path):
         pr_data_with_threads = {**SAMPLE_PR}
         pr_data_with_threads["comments"] = [
-            {"body": "Have you considered using a validation library?", "user": {"login": "reviewer-x"}, "path": "pkg/middleware/validate.go"},
+            {
+                "body": "Have you considered using a validation library?",
+                "user": {"login": "reviewer-x"},
+                "path": "pkg/middleware/validate.go",
+            },
         ]
         pr_data_with_threads["reviews"] = [
             {"body": "Needs tests for malformed JSON.", "user": {"login": "reviewer-y"}},
@@ -395,9 +399,24 @@ class TestFullPipeline:
 
         critique = CritiqueOutput(
             assessments=[
-                CritiqueItem(comment_index=0, would_reviewer_leave_this="yes", phrasing_sounds_like_them="yes", already_covered="no"),
-                CritiqueItem(comment_index=1, would_reviewer_leave_this="yes", phrasing_sounds_like_them="yes", already_covered="no"),
-                CritiqueItem(comment_index=2, would_reviewer_leave_this="yes", phrasing_sounds_like_them="close", already_covered="no"),
+                CritiqueItem(
+                    comment_index=0,
+                    would_reviewer_leave_this="yes",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="no",
+                ),
+                CritiqueItem(
+                    comment_index=1,
+                    would_reviewer_leave_this="yes",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="no",
+                ),
+                CritiqueItem(
+                    comment_index=2,
+                    would_reviewer_leave_this="yes",
+                    phrasing_sounds_like_them="close",
+                    already_covered="no",
+                ),
             ]
         )
         mock_inference.side_effect = [review, critique]
@@ -412,7 +431,10 @@ class TestFullPipeline:
 
         # Verify the full pipeline output
         assert isinstance(result, ReviewOutput)
-        assert "validation middleware" in result.summary.lower() or "good addition" in result.summary.lower()
+        assert (
+            "validation middleware" in result.summary.lower()
+            or "good addition" in result.summary.lower()
+        )
         assert len(result.inline_comments) == 3  # all passed critique + above 0.4 threshold
         assert result.inline_comments[0].confidence == 0.95
 
@@ -454,7 +476,12 @@ class TestFullPipeline:
         )
         critique = CritiqueOutput(
             assessments=[
-                CritiqueItem(comment_index=0, would_reviewer_leave_this="yes", phrasing_sounds_like_them="yes", already_covered="no"),
+                CritiqueItem(
+                    comment_index=0,
+                    would_reviewer_leave_this="yes",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="no",
+                ),
             ]
         )
         mock_inference.side_effect = [review, critique]
@@ -497,16 +524,41 @@ class TestFullPipeline:
         review = ReviewOutput(
             summary="Mixed confidence review.",
             inline_comments=[
-                InlineComment(file="a.go", hunk_header="@@", diff_snippet="+x", comment="High", confidence=0.9),
-                InlineComment(file="b.go", hunk_header="@@", diff_snippet="+y", comment="Low", confidence=0.2),
-                InlineComment(file="c.go", hunk_header="@@", diff_snippet="+z", comment="Borderline", confidence=0.4),
+                InlineComment(
+                    file="a.go", hunk_header="@@", diff_snippet="+x", comment="High", confidence=0.9
+                ),
+                InlineComment(
+                    file="b.go", hunk_header="@@", diff_snippet="+y", comment="Low", confidence=0.2
+                ),
+                InlineComment(
+                    file="c.go",
+                    hunk_header="@@",
+                    diff_snippet="+z",
+                    comment="Borderline",
+                    confidence=0.4,
+                ),
             ],
         )
         critique = CritiqueOutput(
             assessments=[
-                CritiqueItem(comment_index=0, would_reviewer_leave_this="yes", phrasing_sounds_like_them="yes", already_covered="no"),
-                CritiqueItem(comment_index=1, would_reviewer_leave_this="yes", phrasing_sounds_like_them="yes", already_covered="no"),
-                CritiqueItem(comment_index=2, would_reviewer_leave_this="yes", phrasing_sounds_like_them="yes", already_covered="no"),
+                CritiqueItem(
+                    comment_index=0,
+                    would_reviewer_leave_this="yes",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="no",
+                ),
+                CritiqueItem(
+                    comment_index=1,
+                    would_reviewer_leave_this="yes",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="no",
+                ),
+                CritiqueItem(
+                    comment_index=2,
+                    would_reviewer_leave_this="yes",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="no",
+                ),
             ]
         )
         mock_inference.side_effect = [review, critique]
@@ -547,8 +599,11 @@ class TestFullPipeline:
         # Generate 15 comments, all high confidence
         comments = [
             InlineComment(
-                file=f"f{i}.go", hunk_header="@@", diff_snippet=f"+line{i}",
-                comment=f"Comment {i}", confidence=0.95 - i * 0.01,
+                file=f"f{i}.go",
+                hunk_header="@@",
+                diff_snippet=f"+line{i}",
+                comment=f"Comment {i}",
+                confidence=0.95 - i * 0.01,
             )
             for i in range(15)
         ]
@@ -556,7 +611,12 @@ class TestFullPipeline:
 
         # Critique keeps all
         assessments = [
-            CritiqueItem(comment_index=i, would_reviewer_leave_this="yes", phrasing_sounds_like_them="yes", already_covered="no")
+            CritiqueItem(
+                comment_index=i,
+                would_reviewer_leave_this="yes",
+                phrasing_sounds_like_them="yes",
+                already_covered="no",
+            )
             for i in range(15)
         ]
         critique = CritiqueOutput(assessments=assessments)

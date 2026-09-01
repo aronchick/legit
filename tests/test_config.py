@@ -21,7 +21,6 @@ from legit.config import (
     write_default_config,
 )
 
-
 # ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
@@ -133,7 +132,9 @@ class TestLoadConfig:
         assert cfg.github.token_env == "GITHUB_TOKEN"
         assert cfg.retrieval.top_k == 10
 
-    def test_load_config_default_path(self, legit_dir_with_config: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_load_config_default_path(
+        self, legit_dir_with_config: Path, monkeypatch: pytest.MonkeyPatch
+    ):
         monkeypatch.chdir(legit_dir_with_config.parent)
         cfg = load_config()
         assert cfg.profiles[0].name == "testuser"

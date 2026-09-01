@@ -51,10 +51,21 @@ class ExpertiseIndex(BaseModel):
 
 _SEVERITY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("nit", re.compile(r"\bnit[:\s]", re.IGNORECASE)),
-    ("blocking", re.compile(r"\b(block(?:ing|er)?|must|cannot|will not|do not merge)\b", re.IGNORECASE)),
+    (
+        "blocking",
+        re.compile(r"\b(block(?:ing|er)?|must|cannot|will not|do not merge)\b", re.IGNORECASE),
+    ),
     ("question", re.compile(r"\?\s*$", re.MULTILINE)),
-    ("praise", re.compile(r"\b(nice|great|good|lgtm|love|clever|clean|well done)\b", re.IGNORECASE)),
-    ("suggestion", re.compile(r"\b(consider|maybe|could|might|suggest|prefer|would be better)\b", re.IGNORECASE)),
+    (
+        "praise",
+        re.compile(r"\b(nice|great|good|lgtm|love|clever|clean|well done)\b", re.IGNORECASE),
+    ),
+    (
+        "suggestion",
+        re.compile(
+            r"\b(consider|maybe|could|might|suggest|prefer|would be better)\b", re.IGNORECASE
+        ),
+    ),
 ]
 
 
@@ -72,7 +83,17 @@ def classify_severity(text: str) -> str:
 
 # Common code review themes with their trigger words
 _THEME_KEYWORDS: dict[str, list[str]] = {
-    "error handling": ["error", "err", "panic", "recover", "nil", "null", "exception", "catch", "throw"],
+    "error handling": [
+        "error",
+        "err",
+        "panic",
+        "recover",
+        "nil",
+        "null",
+        "exception",
+        "catch",
+        "throw",
+    ],
     "naming": ["name", "naming", "rename", "typo", "unclear", "confusing name"],
     "testing": ["test", "coverage", "assertion", "mock", "fixture", "testcase"],
     "API design": ["api", "endpoint", "schema", "field", "backwards compat", "deprecat"],
@@ -96,8 +117,7 @@ def _extract_themes(comments: list[str], max_themes: int = 5) -> list[dict[str, 
             theme_counts[theme] = count
 
     return [
-        {"theme": theme, "frequency": freq}
-        for theme, freq in theme_counts.most_common(max_themes)
+        {"theme": theme, "frequency": freq} for theme, freq in theme_counts.most_common(max_themes)
     ]
 
 
@@ -164,25 +184,20 @@ def build_expertise_index(
         for item in items:
             body = (item.get("body") or "").strip()
             if body and len(body) > 30:
-                scored_quotes.append({
-                    "text": body[:300],
-                    "file": item.get("path", ""),
-                    "date": (
-                        item.get("created_at")
-                        or item.get("submitted_at")
-                        or ""
-                    ),
-                })
+                scored_quotes.append(
+                    {
+                        "text": body[:300],
+                        "file": item.get("path", ""),
+                        "date": (item.get("created_at") or item.get("submitted_at") or ""),
+                    }
+                )
 
         # Sort by length descending (longer = more detailed/specific)
         scored_quotes.sort(key=lambda q: len(q["text"]), reverse=True)
         example_quotes = scored_quotes[:max_quotes_per_dir]
 
         # Last activity
-        dates = [
-            item.get("created_at") or item.get("submitted_at") or ""
-            for item in items
-        ]
+        dates = [item.get("created_at") or item.get("submitted_at") or "" for item in items]
         dates = [d for d in dates if d]
         last_activity = max(dates) if dates else ""
 
@@ -292,7 +307,8 @@ def format_expertise_context(entries: list[ExpertiseEntry], max_chars: int = 300
 
         theme_str = ", ".join(t["theme"] for t in entry.themes[:3]) if entry.themes else "general"
         severity_str = ", ".join(
-            f"{k}: {v}" for k, v in sorted(entry.severity_distribution.items(), key=lambda x: -x[1])[:3]
+            f"{k}: {v}"
+            for k, v in sorted(entry.severity_distribution.items(), key=lambda x: -x[1])[:3]
         )
 
         section = f"**`{entry.dir_path}`** ({entry.comment_count} past comments)\n"
@@ -302,7 +318,7 @@ def format_expertise_context(entries: list[ExpertiseEntry], max_chars: int = 300
         # Add one representative quote if space allows
         if entry.example_quotes and remaining > 200:
             quote = entry.example_quotes[0]
-            section += f"  Example: \"{quote['text'][:150]}...\"\n"
+            section += f'  Example: "{quote["text"][:150]}..."\n'
 
         section += "\n"
 

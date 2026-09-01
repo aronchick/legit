@@ -29,8 +29,8 @@ BUGFIX_NIL_CHECK = {
         "@@ -22,6 +22,10 @@ func HandleAuth(w http.ResponseWriter, r *http.Request) {\n"
         "     claims, err := parseClaims(tokenStr)\n"
         "+    if claims == nil {\n"
-        "+        log.Warn(\"nil claims from valid token parse\")\n"
-        "+        http.Error(w, \"unauthorized\", http.StatusUnauthorized)\n"
+        '+        log.Warn("nil claims from valid token parse")\n'
+        '+        http.Error(w, "unauthorized", http.StatusUnauthorized)\n'
         "+        return\n"
         "+    }\n"
         "     userID := claims.Subject\n"
@@ -79,12 +79,12 @@ FEATURE_VALIDATION_MIDDLEWARE = {
         "+func ValidateRequest(next http.Handler) http.Handler {\n"
         "+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n"
         "+        if r.Body == nil {\n"
-        "+            http.Error(w, \"missing request body\", http.StatusBadRequest)\n"
+        '+            http.Error(w, "missing request body", http.StatusBadRequest)\n'
         "+            return\n"
         "+        }\n"
         "+        var body map[string]interface{}\n"
         "+        if err := json.NewDecoder(r.Body).Decode(&body); err != nil {\n"
-        "+            http.Error(w, \"invalid JSON\", http.StatusBadRequest)\n"
+        '+            http.Error(w, "invalid JSON", http.StatusBadRequest)\n'
         "+            return\n"
         "+        }\n"
         "+        // TODO: validate fields against struct tags\n"
@@ -141,14 +141,34 @@ REFACTOR_HANDLER_MODULES = {
             f"--- a/pkg/handlers/{name}.go\n"
             f"+++ b/pkg/handlers/{name}.go\n"
             f"@@ -{10 + i * 5},3 +{10 + i * 5},5 @@ func Handle{name.title()}(w http.ResponseWriter, r *http.Request) {{\n"
-            f"-    http.Error(w, \"internal error\", 500)\n"
-            f"+    respondError(w, r, fmt.Errorf(\"{name} handler failed: %w\", err), http.StatusInternalServerError)\n"
-            for i, name in enumerate(["auth", "users", "projects", "billing", "notifications", "settings", "webhooks", "search"])
+            f'-    http.Error(w, "internal error", 500)\n'
+            f'+    respondError(w, r, fmt.Errorf("{name} handler failed: %w", err), http.StatusInternalServerError)\n'
+            for i, name in enumerate(
+                [
+                    "auth",
+                    "users",
+                    "projects",
+                    "billing",
+                    "notifications",
+                    "settings",
+                    "webhooks",
+                    "search",
+                ]
+            )
         ]
     ),
     "files": [
         {"filename": f"pkg/handlers/{name}.go", "additions": 2, "deletions": 1}
-        for name in ["auth", "users", "projects", "billing", "notifications", "settings", "webhooks", "search"]
+        for name in [
+            "auth",
+            "users",
+            "projects",
+            "billing",
+            "notifications",
+            "settings",
+            "webhooks",
+            "search",
+        ]
     ],
     "comments": [
         {
@@ -163,7 +183,10 @@ REFACTOR_HANDLER_MODULES = {
         },
     ],
     "reviews": [
-        {"body": "Conceptually LGTM. Let's make sure the error format is documented.", "user": {"login": "senior-dev"}},
+        {
+            "body": "Conceptually LGTM. Let's make sure the error format is documented.",
+            "user": {"login": "senior-dev"},
+        },
     ],
     "linked_issues": [{"number": 400, "title": "Error handling improvement epic"}],
 }

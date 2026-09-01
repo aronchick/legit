@@ -13,10 +13,9 @@ import time
 import traceback
 from functools import partial
 from pathlib import Path
-from typing import Optional
 
 from fastapi import FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 
 from legit.config import LegitConfig, load_config
 from legit.review import generate_review
@@ -34,31 +33,163 @@ _TEMPLATE_PATH = Path(__file__).parent / "templates" / "index.html"
 
 SAMPLE_PRS: list[dict] = [
     # --- thockin ---
-    {"number": 125488, "title": "DRA for 1.31", "reviewer": "thockin", "repo": "kubernetes/kubernetes", "comments": 731},
-    {"number": 124012, "title": "Coordinated Leader Election", "reviewer": "thockin", "repo": "kubernetes/kubernetes", "comments": 401},
-    {"number": 136589, "title": "Add Workload-Aware Preemption fields", "reviewer": "thockin", "repo": "kubernetes/kubernetes", "comments": 198},
-    {"number": 128407, "title": "Pod Level Resources Feature Alpha", "reviewer": "thockin", "repo": "kubernetes/kubernetes", "comments": 278},
-    {"number": 102884, "title": "In-place Pod Vertical Scaling feature", "reviewer": "thockin", "repo": "kubernetes/kubernetes", "comments": 594},
+    {
+        "number": 125488,
+        "title": "DRA for 1.31",
+        "reviewer": "thockin",
+        "repo": "kubernetes/kubernetes",
+        "comments": 731,
+    },
+    {
+        "number": 124012,
+        "title": "Coordinated Leader Election",
+        "reviewer": "thockin",
+        "repo": "kubernetes/kubernetes",
+        "comments": 401,
+    },
+    {
+        "number": 136589,
+        "title": "Add Workload-Aware Preemption fields",
+        "reviewer": "thockin",
+        "repo": "kubernetes/kubernetes",
+        "comments": 198,
+    },
+    {
+        "number": 128407,
+        "title": "Pod Level Resources Feature Alpha",
+        "reviewer": "thockin",
+        "repo": "kubernetes/kubernetes",
+        "comments": 278,
+    },
+    {
+        "number": 102884,
+        "title": "In-place Pod Vertical Scaling feature",
+        "reviewer": "thockin",
+        "repo": "kubernetes/kubernetes",
+        "comments": 594,
+    },
     # --- liggitt ---
-    {"number": 128152, "title": "Multi-tenancy in accessing node images via Pod API", "reviewer": "liggitt", "repo": "kubernetes/kubernetes", "comments": 241},
-    {"number": 128190, "title": "Add ExternalJWTSigner integration", "reviewer": "liggitt", "repo": "kubernetes/kubernetes", "comments": 150},
-    {"number": 128010, "title": "Pod Certificates: KEP-4317 implementation", "reviewer": "liggitt", "repo": "kubernetes/kubernetes", "comments": 180},
-    {"number": 125230, "title": "Introduce kuberc for kubectl customization", "reviewer": "liggitt", "repo": "kubernetes/kubernetes", "comments": 230},
-    {"number": 132919, "title": "Pod level in-place resize — alpha", "reviewer": "liggitt", "repo": "kubernetes/kubernetes", "comments": 179},
+    {
+        "number": 128152,
+        "title": "Multi-tenancy in accessing node images via Pod API",
+        "reviewer": "liggitt",
+        "repo": "kubernetes/kubernetes",
+        "comments": 241,
+    },
+    {
+        "number": 128190,
+        "title": "Add ExternalJWTSigner integration",
+        "reviewer": "liggitt",
+        "repo": "kubernetes/kubernetes",
+        "comments": 150,
+    },
+    {
+        "number": 128010,
+        "title": "Pod Certificates: KEP-4317 implementation",
+        "reviewer": "liggitt",
+        "repo": "kubernetes/kubernetes",
+        "comments": 180,
+    },
+    {
+        "number": 125230,
+        "title": "Introduce kuberc for kubectl customization",
+        "reviewer": "liggitt",
+        "repo": "kubernetes/kubernetes",
+        "comments": 230,
+    },
+    {
+        "number": 132919,
+        "title": "Pod level in-place resize — alpha",
+        "reviewer": "liggitt",
+        "repo": "kubernetes/kubernetes",
+        "comments": 179,
+    },
     # --- lavalamp ---
-    {"number": 113985, "title": "Propagate HasSynced properly", "reviewer": "lavalamp", "repo": "kubernetes/kubernetes", "comments": 120},
-    {"number": 112377, "title": "Refactor sets to use generics", "reviewer": "lavalamp", "repo": "kubernetes/kubernetes", "comments": 86},
-    {"number": 112858, "title": "CEL Admission Plugin", "reviewer": "lavalamp", "repo": "kubernetes/kubernetes", "comments": 95},
-    {"number": 111978, "title": "Aggregated discovery types", "reviewer": "lavalamp", "repo": "kubernetes/kubernetes", "comments": 72},
-    {"number": 115402, "title": "Add API for watch list", "reviewer": "lavalamp", "repo": "kubernetes/kubernetes", "comments": 88},
-    {"number": 115620, "title": "client-go/cache: fix missing delete event on replace", "reviewer": "lavalamp", "repo": "kubernetes/kubernetes", "comments": 26},
+    {
+        "number": 113985,
+        "title": "Propagate HasSynced properly",
+        "reviewer": "lavalamp",
+        "repo": "kubernetes/kubernetes",
+        "comments": 120,
+    },
+    {
+        "number": 112377,
+        "title": "Refactor sets to use generics",
+        "reviewer": "lavalamp",
+        "repo": "kubernetes/kubernetes",
+        "comments": 86,
+    },
+    {
+        "number": 112858,
+        "title": "CEL Admission Plugin",
+        "reviewer": "lavalamp",
+        "repo": "kubernetes/kubernetes",
+        "comments": 95,
+    },
+    {
+        "number": 111978,
+        "title": "Aggregated discovery types",
+        "reviewer": "lavalamp",
+        "repo": "kubernetes/kubernetes",
+        "comments": 72,
+    },
+    {
+        "number": 115402,
+        "title": "Add API for watch list",
+        "reviewer": "lavalamp",
+        "repo": "kubernetes/kubernetes",
+        "comments": 88,
+    },
+    {
+        "number": 115620,
+        "title": "client-go/cache: fix missing delete event on replace",
+        "reviewer": "lavalamp",
+        "repo": "kubernetes/kubernetes",
+        "comments": 26,
+    },
     # --- bgrant0607 ---
-    {"number": 18016, "title": "Proposal for StatefulSets (nominal services)", "reviewer": "bgrant0607", "repo": "kubernetes/kubernetes", "comments": 210},
-    {"number": 20273, "title": "Proportionally scale paused/rolling deployments", "reviewer": "bgrant0607", "repo": "kubernetes/kubernetes", "comments": 145},
-    {"number": 6477, "title": "Config Resource Proposal", "reviewer": "bgrant0607", "repo": "kubernetes/kubernetes", "comments": 130},
-    {"number": 1325, "title": "Proposal for new kubecfg design (kubectl)", "reviewer": "bgrant0607", "repo": "kubernetes/kubernetes", "comments": 95},
-    {"number": 18215, "title": "Initial template and parameterization proposal", "reviewer": "bgrant0607", "repo": "kubernetes/kubernetes", "comments": 171},
-    {"number": 5093, "title": "Downward API volume plugin", "reviewer": "bgrant0607", "repo": "kubernetes/kubernetes", "comments": 198},
+    {
+        "number": 18016,
+        "title": "Proposal for StatefulSets (nominal services)",
+        "reviewer": "bgrant0607",
+        "repo": "kubernetes/kubernetes",
+        "comments": 210,
+    },
+    {
+        "number": 20273,
+        "title": "Proportionally scale paused/rolling deployments",
+        "reviewer": "bgrant0607",
+        "repo": "kubernetes/kubernetes",
+        "comments": 145,
+    },
+    {
+        "number": 6477,
+        "title": "Config Resource Proposal",
+        "reviewer": "bgrant0607",
+        "repo": "kubernetes/kubernetes",
+        "comments": 130,
+    },
+    {
+        "number": 1325,
+        "title": "Proposal for new kubecfg design (kubectl)",
+        "reviewer": "bgrant0607",
+        "repo": "kubernetes/kubernetes",
+        "comments": 95,
+    },
+    {
+        "number": 18215,
+        "title": "Initial template and parameterization proposal",
+        "reviewer": "bgrant0607",
+        "repo": "kubernetes/kubernetes",
+        "comments": 171,
+    },
+    {
+        "number": 5093,
+        "title": "Downward API volume plugin",
+        "reviewer": "bgrant0607",
+        "repo": "kubernetes/kubernetes",
+        "comments": 198,
+    },
 ]
 
 # Map reviewer GitHub handles to profile names
@@ -73,6 +204,7 @@ _REVIEWER_TO_PROFILE = {
 def _render(context: dict) -> HTMLResponse:
     """Render the template with Jinja2 directly (avoids Starlette cache issues)."""
     from jinja2 import Environment, FileSystemLoader
+
     env = Environment(loader=FileSystemLoader(str(_TEMPLATE_PATH.parent)))
     template = env.get_template("index.html")
     return HTMLResponse(template.render(**context))
@@ -86,11 +218,13 @@ def _sample_prs_for_template() -> list[dict]:
     """Return the sample PR list enriched with URLs for the template."""
     enriched = []
     for pr in SAMPLE_PRS:
-        enriched.append({
-            **pr,
-            "pr_url": f"https://github.com/{pr['repo']}/pull/{pr['number']}",
-            "profile_name": _REVIEWER_TO_PROFILE.get(pr["reviewer"], pr["reviewer"]),
-        })
+        enriched.append(
+            {
+                **pr,
+                "pr_url": f"https://github.com/{pr['repo']}/pull/{pr['number']}",
+                "profile_name": _REVIEWER_TO_PROFILE.get(pr["reviewer"], pr["reviewer"]),
+            }
+        )
     return enriched
 
 
@@ -103,14 +237,16 @@ async def index(request: Request) -> HTMLResponse:
     for s in samples:
         s["pr_url"] = f"https://github.com/{s['repo']}/pull/{s['number']}"
         s["profile_name"] = _REVIEWER_TO_PROFILE.get(s["reviewer"], s["reviewer"])
-    return _render({
-        "profiles": profiles,
-        "review": None,
-        "error": None,
-        "pr_url": "",
-        "sample_prs": samples,
-        "all_sample_prs": _sample_prs_for_template(),
-    })
+    return _render(
+        {
+            "profiles": profiles,
+            "review": None,
+            "error": None,
+            "pr_url": "",
+            "sample_prs": samples,
+            "all_sample_prs": _sample_prs_for_template(),
+        }
+    )
 
 
 @app.get("/review", response_class=HTMLResponse)
@@ -124,7 +260,9 @@ async def review_get(
 
 
 @app.post("/review", response_class=HTMLResponse)
-async def review(request: Request, pr_url: str = Form(...), profile_name: str = Form(...)) -> HTMLResponse:
+async def review(
+    request: Request, pr_url: str = Form(...), profile_name: str = Form(...)
+) -> HTMLResponse:
     return await _do_review(pr_url, profile_name)
 
 
@@ -137,6 +275,7 @@ async def _do_review(pr_url: str, profile_name: str) -> HTMLResponse:
     if not os.environ.get(cfg.github.token_env):
         try:
             import subprocess
+
             token = subprocess.run(
                 ["gh", "auth", "token"], capture_output=True, text=True, timeout=5
             ).stdout.strip()
@@ -178,27 +317,31 @@ async def _do_review(pr_url: str, profile_name: str) -> HTMLResponse:
             "abstention_reason": result.abstention_reason,
         }
 
-        return _render({
-            "profiles": profiles,
-            "review": review_data,
-            "error": None,
-            "pr_url": pr_url,
-            "profile_name": profile_name,
-            "original_pr_url": original_pr_url,
-            "sample_prs": [],
-            "all_sample_prs": _sample_prs_for_template(),
-        })
+        return _render(
+            {
+                "profiles": profiles,
+                "review": review_data,
+                "error": None,
+                "pr_url": pr_url,
+                "profile_name": profile_name,
+                "original_pr_url": original_pr_url,
+                "sample_prs": [],
+                "all_sample_prs": _sample_prs_for_template(),
+            }
+        )
     except Exception as exc:
         tb = traceback.format_exc()
-        return _render({
-            "profiles": profiles,
-            "review": None,
-            "error": f"{exc}\n\n{tb}",
-            "pr_url": pr_url,
-            "profile_name": profile_name,
-            "sample_prs": [],
-            "all_sample_prs": _sample_prs_for_template(),
-        })
+        return _render(
+            {
+                "profiles": profiles,
+                "review": None,
+                "error": f"{exc}\n\n{tb}",
+                "pr_url": pr_url,
+                "profile_name": profile_name,
+                "sample_prs": [],
+                "all_sample_prs": _sample_prs_for_template(),
+            }
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +354,7 @@ def _ensure_github_token(cfg: LegitConfig) -> None:
     if not os.environ.get(cfg.github.token_env):
         try:
             import subprocess
+
             token = subprocess.run(
                 ["gh", "auth", "token"], capture_output=True, text=True, timeout=5
             ).stdout.strip()
@@ -247,47 +391,95 @@ def _run_review_with_progress(
 
     try:
         # Step 1: Load profile + expertise index
-        progress_q.put({"step": "profile", "status": "running", "detail": f"Loading reviewer profile: {profile_name}"})
+        progress_q.put(
+            {
+                "step": "profile",
+                "status": "running",
+                "detail": f"Loading reviewer profile: {profile_name}",
+            }
+        )
         t0 = time.time()
         profile_document = load_profile(profile_name)
 
         from legit.expertise import format_expertise_context, load_expertise_index, lookup_expertise
+
         expertise_index = load_expertise_index(profile_name)
-        idx_detail = f", expertise index ({len(expertise_index.entries)} dirs)" if expertise_index else ""
-        progress_q.put({"step": "profile", "status": "done", "detail": f"Profile loaded ({len(profile_document)//1024}KB){idx_detail}", "elapsed": round(time.time() - t0, 1)})
+        idx_detail = (
+            f", expertise index ({len(expertise_index.entries)} dirs)" if expertise_index else ""
+        )
+        progress_q.put(
+            {
+                "step": "profile",
+                "status": "done",
+                "detail": f"Profile loaded ({len(profile_document) // 1024}KB){idx_detail}",
+                "elapsed": round(time.time() - t0, 1),
+            }
+        )
 
         # Step 2: Fetch PR
-        progress_q.put({"step": "fetch", "status": "running", "detail": "Fetching PR from GitHub..."})
+        progress_q.put(
+            {"step": "fetch", "status": "running", "detail": "Fetching PR from GitHub..."}
+        )
         t0 = time.time()
         with GitHubClient(cfg.github) as gh:
             pr_data = gh.fetch_pr_for_review(pr_url)
             pr_title = pr_data["metadata"].get("title", "(untitled)")
             file_count = len(pr_data.get("files", []))
             diff_kb = len(pr_data.get("diff", "")) // 1024
-            progress_q.put({"step": "fetch", "status": "done", "detail": f"{pr_title} — {file_count} files, {diff_kb}KB diff", "elapsed": round(time.time() - t0, 1)})
+            progress_q.put(
+                {
+                    "step": "fetch",
+                    "status": "done",
+                    "detail": f"{pr_title} — {file_count} files, {diff_kb}KB diff",
+                    "elapsed": round(time.time() - t0, 1),
+                }
+            )
 
             # Step 2b: Fetch codebase context
-            progress_q.put({"step": "context", "status": "running", "detail": f"Fetching full source files for {file_count} changed files..."})
+            progress_q.put(
+                {
+                    "step": "context",
+                    "status": "running",
+                    "detail": f"Fetching full source files for {file_count} changed files...",
+                }
+            )
             t0 = time.time()
             context_files = gh.fetch_pr_context_files(pr_url, pr_data)
             ctx_kb = sum(len(v) for v in context_files.values()) // 1024
-            progress_q.put({"step": "context", "status": "done", "detail": f"Fetched {len(context_files)} files ({ctx_kb}KB) for codebase awareness", "elapsed": round(time.time() - t0, 1)})
+            progress_q.put(
+                {
+                    "step": "context",
+                    "status": "done",
+                    "detail": f"Fetched {len(context_files)} files ({ctx_kb}KB) for codebase awareness",
+                    "elapsed": round(time.time() - t0, 1),
+                }
+            )
 
         # Step 3: Retrieve similar past comments (semantic or BM25)
-        progress_q.put({"step": "retrieve", "status": "running", "detail": "Searching reviewer's past comments..."})
+        progress_q.put(
+            {
+                "step": "retrieve",
+                "status": "running",
+                "detail": "Searching reviewer's past comments...",
+            }
+        )
         t0 = time.time()
         diff_hunks = _parse_diff_hunks(pr_data.get("diff", ""))
         queries = construct_queries(diff_hunks)
         pr_changed_files = [f.get("filename", "") for f in pr_data.get("files", [])]
 
-        from legit.embeddings import is_available as embeddings_available, load_embedding_index
+        from legit.embeddings import is_available as embeddings_available
+        from legit.embeddings import load_embedding_index
+
         embedding_index = load_embedding_index(profile_name) if embeddings_available() else None
 
         if embedding_index and len(embedding_index.documents) > 0:
             query_texts = [f"{h.get('file_path', '')} {h.get('content', '')}" for h in diff_hunks]
             if not query_texts:
                 query_texts = queries
-            retrieved_docs = embedding_index.search_as_retrieval_docs(query_texts, top_k=cfg.retrieval.top_k)
+            retrieved_docs = embedding_index.search_as_retrieval_docs(
+                query_texts, top_k=cfg.retrieval.top_k
+            )
             retrieval_detail = f"Found {len(retrieved_docs)} examples via semantic search"
         else:
             temporal_half_life = 730
@@ -306,7 +498,14 @@ def _run_review_with_progress(
             retrieval_detail = f"Found {len(retrieved_docs)} examples via BM25"
 
         examples_text = format_examples(retrieved_docs)
-        progress_q.put({"step": "retrieve", "status": "done", "detail": retrieval_detail, "elapsed": round(time.time() - t0, 1)})
+        progress_q.put(
+            {
+                "step": "retrieve",
+                "status": "done",
+                "detail": retrieval_detail,
+                "elapsed": round(time.time() - t0, 1),
+            }
+        )
 
         # Step 3b: Expertise lookup
         expertise_context = ""
@@ -316,11 +515,19 @@ def _run_review_with_progress(
 
         # Step 4: Build prompts
         system_prompt = _build_system_prompt(profile_name, profile_document, examples_text)
-        user_prompt = _build_user_prompt(profile_name, pr_data, context_files=context_files, expertise_context=expertise_context)
+        user_prompt = _build_user_prompt(
+            profile_name, pr_data, context_files=context_files, expertise_context=expertise_context
+        )
 
         # Step 5: Generate review (LLM call #1 — the big one)
         prompt_kb = (len(system_prompt) + len(user_prompt)) // 1024
-        progress_q.put({"step": "generate", "status": "running", "detail": f"Generating review ({prompt_kb}KB prompt)... this takes 1-2 minutes"})
+        progress_q.put(
+            {
+                "step": "generate",
+                "status": "running",
+                "detail": f"Generating review ({prompt_kb}KB prompt)... this takes 1-2 minutes",
+            }
+        )
         t0 = time.time()
         result = run_inference(
             system_prompt=system_prompt,
@@ -334,29 +541,61 @@ def _run_review_with_progress(
         else:
             review = ReviewOutput(summary=str(result))
 
-        progress_q.put({
-            "step": "generate", "status": "done",
-            "detail": f"Generated {len(review.inline_comments)} comments, {len(review.abstained_files)} abstentions",
-            "elapsed": round(time.time() - t0, 1),
-        })
+        progress_q.put(
+            {
+                "step": "generate",
+                "status": "done",
+                "detail": f"Generated {len(review.inline_comments)} comments, {len(review.abstained_files)} abstentions",
+                "elapsed": round(time.time() - t0, 1),
+            }
+        )
 
         # Step 6: Self-critique (LLM call #2)
         if review.inline_comments:
-            progress_q.put({"step": "critique", "status": "running", "detail": f"Self-critique: filtering {len(review.inline_comments)} comments for authenticity..."})
+            progress_q.put(
+                {
+                    "step": "critique",
+                    "status": "running",
+                    "detail": f"Self-critique: filtering {len(review.inline_comments)} comments for authenticity...",
+                }
+            )
             t0 = time.time()
             existing_threads = _format_existing_threads(
                 pr_data.get("comments", []),
                 pr_data.get("reviews", []),
             )
             review = _run_self_critique(cfg, review, examples_text, existing_threads)
-            progress_q.put({"step": "critique", "status": "done", "detail": f"{len(review.inline_comments)} comments passed critique", "elapsed": round(time.time() - t0, 1)})
+            progress_q.put(
+                {
+                    "step": "critique",
+                    "status": "done",
+                    "detail": f"{len(review.inline_comments)} comments passed critique",
+                    "elapsed": round(time.time() - t0, 1),
+                }
+            )
         else:
-            progress_q.put({"step": "critique", "status": "done", "detail": "No comments to critique — reviewer would approve as-is", "elapsed": 0})
+            progress_q.put(
+                {
+                    "step": "critique",
+                    "status": "done",
+                    "detail": "No comments to critique — reviewer would approve as-is",
+                    "elapsed": 0,
+                }
+            )
 
         # Step 7: Filter
-        progress_q.put({"step": "filter", "status": "running", "detail": "Applying confidence threshold..."})
+        progress_q.put(
+            {"step": "filter", "status": "running", "detail": "Applying confidence threshold..."}
+        )
         review = _apply_filters(review, cfg)
-        progress_q.put({"step": "filter", "status": "done", "detail": f"{len(review.inline_comments)} final comments (threshold: {cfg.review.abstention_threshold})", "elapsed": 0})
+        progress_q.put(
+            {
+                "step": "filter",
+                "status": "done",
+                "detail": f"{len(review.inline_comments)} final comments (threshold: {cfg.review.abstention_threshold})",
+                "elapsed": 0,
+            }
+        )
 
         # Done — send the final result
         review_data = {
@@ -375,7 +614,9 @@ def _run_review_with_progress(
             "abstained_files": review.abstained_files,
             "abstention_reason": review.abstention_reason,
         }
-        progress_q.put({"step": "done", "status": "done", "detail": "Review complete", "review": review_data})
+        progress_q.put(
+            {"step": "done", "status": "done", "detail": "Review complete", "review": review_data}
+        )
 
     except Exception as exc:
         tb = traceback.format_exc()
@@ -429,4 +670,5 @@ async def review_stream(
 def serve(host: str = "0.0.0.0", port: int = 8142) -> None:
     """Start the web server."""
     import uvicorn
+
     uvicorn.run(app, host=host, port=port)

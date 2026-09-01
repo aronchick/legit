@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
 from legit.config import LegitConfig, legit_path
-from legit.github_client import GitHubClient, get_token
+from legit.github_client import GitHubClient
 from legit.model_runner import run_inference
 from legit.models import ReviewOutput
 
@@ -42,11 +42,13 @@ class CalibrationScore(BaseModel):
 
     pr_url: str
     pr_number: int
-    issue_detection: float = 0.0      # 0-10: Did we catch the same problems?
-    voice_fidelity: float = 0.0       # 0-10: Does it sound like the reviewer?
+    issue_detection: float = 0.0  # 0-10: Did we catch the same problems?
+    voice_fidelity: float = 0.0  # 0-10: Does it sound like the reviewer?
     appropriate_abstention: float = 0.0  # 0-10: Did we stay quiet where they would?
-    false_positives: float = 0.0      # 0-10: Did we avoid flagging things they wouldn't? (inverted: 10 = no false positives)
-    overall: float = 0.0             # 0-10: Weighted average
+    false_positives: float = (
+        0.0  # 0-10: Did we avoid flagging things they wouldn't? (inverted: 10 = no false positives)
+    )
+    overall: float = 0.0  # 0-10: Weighted average
     judge_reasoning: str = ""
     generated_comment_count: int = 0
     real_comment_count: int = 0
@@ -112,7 +114,8 @@ def find_holdout_prs(
                 continue
 
             reviewer_comments = [
-                c for c in all_comments
+                c
+                for c in all_comments
                 if (c.get("user") or {}).get("login", "").lower() == username.lower()
                 and (c.get("body") or "").strip()
             ]
@@ -121,20 +124,22 @@ def find_holdout_prs(
             if len(reviewer_comments) < 2:
                 continue
 
-            holdouts.append(HoldoutPR(
-                pr_url=f"https://github.com/{owner}/{repo}/pull/{pr_num}",
-                pr_number=pr_num,
-                pr_title=item.get("title", ""),
-                reviewer_comments=[
-                    {
-                        "body": c.get("body", ""),
-                        "path": c.get("path", ""),
-                        "diff_hunk": c.get("diff_hunk", ""),
-                    }
-                    for c in reviewer_comments
-                ],
-                reviewer_comment_count=len(reviewer_comments),
-            ))
+            holdouts.append(
+                HoldoutPR(
+                    pr_url=f"https://github.com/{owner}/{repo}/pull/{pr_num}",
+                    pr_number=pr_num,
+                    pr_title=item.get("title", ""),
+                    reviewer_comments=[
+                        {
+                            "body": c.get("body", ""),
+                            "path": c.get("path", ""),
+                            "diff_hunk": c.get("diff_hunk", ""),
+                        }
+                        for c in reviewer_comments
+                    ],
+                    reviewer_comment_count=len(reviewer_comments),
+                )
+            )
 
         except Exception:
             continue
@@ -314,7 +319,10 @@ def run_calibration(
     for i, holdout in enumerate(holdouts):
         logger.info(
             "Calibrating %d/%d: PR #%d (%d real comments)",
-            i + 1, len(holdouts), holdout.pr_number, holdout.reviewer_comment_count,
+            i + 1,
+            len(holdouts),
+            holdout.pr_number,
+            holdout.reviewer_comment_count,
         )
 
         try:
@@ -342,12 +350,14 @@ def run_calibration(
 
         except Exception as exc:
             logger.error("  PR #%d failed: %s", holdout.pr_number, exc)
-            scores.append(CalibrationScore(
-                pr_url=holdout.pr_url,
-                pr_number=holdout.pr_number,
-                judge_reasoning=f"Generation failed: {exc}",
-                real_comment_count=holdout.reviewer_comment_count,
-            ))
+            scores.append(
+                CalibrationScore(
+                    pr_url=holdout.pr_url,
+                    pr_number=holdout.pr_number,
+                    judge_reasoning=f"Generation failed: {exc}",
+                    real_comment_count=holdout.reviewer_comment_count,
+                )
+            )
 
     # Step 3: Compute averages
     valid_scores = [s for s in scores if s.overall > 0]
@@ -355,12 +365,14 @@ def run_calibration(
 
     result = CalibrationResult(
         profile_name=profile_name,
-        timestamp=datetime.now(tz=timezone.utc).isoformat(),
+        timestamp=datetime.now(tz=UTC).isoformat(),
         holdout_count=len(holdouts),
         scores=scores,
         avg_issue_detection=round(sum(s.issue_detection for s in valid_scores) / n, 1),
         avg_voice_fidelity=round(sum(s.voice_fidelity for s in valid_scores) / n, 1),
-        avg_appropriate_abstention=round(sum(s.appropriate_abstention for s in valid_scores) / n, 1),
+        avg_appropriate_abstention=round(
+            sum(s.appropriate_abstention for s in valid_scores) / n, 1
+        ),
         avg_false_positives=round(sum(s.false_positives for s in valid_scores) / n, 1),
         avg_overall=round(sum(s.overall for s in valid_scores) / n, 1),
     )

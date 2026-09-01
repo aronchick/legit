@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -63,25 +62,23 @@ def init() -> None:
 
 @app.command()
 def fetch(
-    repo: Optional[str] = typer.Option(
-        None, "--repo", help="Repository to fetch (owner/repo)."
-    ),
-    user: Optional[str] = typer.Option(
-        None, "--user", help="GitHub username to fetch activity for."
-    ),
+    repo: str | None = typer.Option(None, "--repo", help="Repository to fetch (owner/repo)."),
+    user: str | None = typer.Option(None, "--user", help="GitHub username to fetch activity for."),
     index_only: bool = typer.Option(
         False, "--index-only", help="Only build the index; skip downloading content."
     ),
-    since: Optional[str] = typer.Option(
+    since: str | None = typer.Option(
         None, "--since", help="Only fetch activity since this date (YYYY-MM-DD)."
     ),
     skip_reviews: bool = typer.Option(
-        False, "--skip-reviews", help="Skip the slow PR reviews indexing (list PRs → fetch reviews)."
+        False,
+        "--skip-reviews",
+        help="Skip the slow PR reviews indexing (list PRs → fetch reviews).",
     ),
 ) -> None:
     """Index and download GitHub activity for configured profiles."""
     from legit.config import load_config
-    from legit.github_client import GitHubClient, get_token, validate_token
+    from legit.github_client import GitHubClient, validate_token
 
     try:
         cfg = load_config()
@@ -93,7 +90,7 @@ def fetch(
     try:
         user_info = validate_token(cfg.github)
         console.print(f"[dim]Authenticated as {user_info.get('login', 'unknown')}[/]")
-    except EnvironmentError as exc:
+    except OSError as exc:
         console.print(f"[red]{exc}[/]")
         raise typer.Exit(code=1)
 
@@ -111,7 +108,9 @@ def fetch(
                     continue
                 sources.append((src.repo, src.username))
         if not sources:
-            console.print("[red]No matching sources found in config for the given --repo/--user.[/]")
+            console.print(
+                "[red]No matching sources found in config for the given --repo/--user.[/]"
+            )
             raise typer.Exit(code=1)
     else:
         # Fetch all configured sources
@@ -134,12 +133,14 @@ def fetch(
                     client.download_content(source_repo, username)
 
                 # Also fetch authored PR diffs for coding style analysis
-                console.print(f"  [dim]Fetching authored PR diffs for coding style...[/]")
+                console.print("  [dim]Fetching authored PR diffs for coding style...[/]")
                 owner, repo_name = source_repo.split("/", 1)
                 authored = client.fetch_authored_pr_diffs(owner, repo_name, username, max_prs=30)
                 if authored:
-                    from legit.config import legit_path
                     import json
+
+                    from legit.config import legit_path
+
                     ddir = legit_path() / "data" / f"{owner}_{repo_name}" / username
                     ddir.mkdir(parents=True, exist_ok=True)
                     (ddir / "authored_prs.json").write_text(
@@ -147,7 +148,7 @@ def fetch(
                     )
                     console.print(f"  [green]Saved {len(authored)} authored PR diffs[/]")
                 else:
-                    console.print(f"  [dim]No authored PRs found[/]")
+                    console.print("  [dim]No authored PRs found[/]")
 
             except Exception as exc:
                 console.print(f"[red]Error fetching {source_repo}/{username}: {exc}[/]")
@@ -163,19 +164,15 @@ def fetch(
 
 @app.command()
 def build(
-    profile: Optional[str] = typer.Option(
-        None, "--profile", help="Name of the profile to build."
-    ),
-    rebuild_map: bool = typer.Option(
-        False, "--rebuild-map", help="Force re-run of the map phase."
-    ),
+    profile: str | None = typer.Option(None, "--profile", help="Name of the profile to build."),
+    rebuild_map: bool = typer.Option(False, "--rebuild-map", help="Force re-run of the map phase."),
     no_overwrite: bool = typer.Option(
         False, "--no-overwrite", help="Skip if profile already exists."
     ),
-    max_chunks: Optional[int] = typer.Option(
+    max_chunks: int | None = typer.Option(
         None, "--max-chunks", help="Process only the first N chunks (for testing)."
     ),
-    concurrency: Optional[int] = typer.Option(
+    concurrency: int | None = typer.Option(
         None, "--concurrency", "-j", help="Number of parallel map workers (overrides config)."
     ),
 ) -> None:
@@ -204,8 +201,7 @@ def build(
         if len(cfg.profiles) > 1:
             names = ", ".join(p.name for p in cfg.profiles)
             console.print(
-                f"[red]Multiple profiles configured ({names}). "
-                f"Use --profile to specify one.[/]"
+                f"[red]Multiple profiles configured ({names}). Use --profile to specify one.[/]"
             )
             raise typer.Exit(code=1)
         profile_cfg = cfg.profiles[0]
@@ -224,12 +220,15 @@ def build(
 
     # Phase 1+2: Map-Reduce (build profile)
     console.print(f"\n[bold]Building profile: {profile_name}[/]")
-    console.print(f"[dim]Phase 1/2: Map-Reduce — {profile_cfg.map_concurrency} parallel workers...[/]")
+    console.print(
+        f"[dim]Phase 1/2: Map-Reduce — {profile_cfg.map_concurrency} parallel workers...[/]"
+    )
     try:
         build_profile(cfg, profile_name, rebuild_map=rebuild_map, max_chunks=max_chunks)
     except Exception as exc:
         console.print(f"[red]Map-reduce failed: {exc}[/]")
         import traceback
+
         traceback.print_exc()
         raise typer.Exit(code=1)
     console.print("[green]  Profile generated.[/]")
@@ -254,18 +253,14 @@ def build(
 
 @app.command()
 def review(
-    pr: str = typer.Option(
-        ..., "--pr", help="GitHub PR URL to review."
-    ),
-    profile: Optional[str] = typer.Option(
+    pr: str = typer.Option(..., "--pr", help="GitHub PR URL to review."),
+    profile: str | None = typer.Option(
         None, "--profile", help="Name of the reviewer profile to use."
     ),
     dry_run: bool = typer.Option(
         True, "--dry-run/--post", help="Print review to stdout (default) or post to GitHub."
     ),
-    output: Optional[Path] = typer.Option(
-        None, "--output", help="Write review to a file."
-    ),
+    output: Path | None = typer.Option(None, "--output", help="Write review to a file."),
 ) -> None:
     """Generate a PR review in a learned reviewer's voice."""
     from legit.config import load_config
@@ -291,8 +286,7 @@ def review(
         if len(cfg.profiles) > 1:
             names = ", ".join(p.name for p in cfg.profiles)
             console.print(
-                f"[red]Multiple profiles configured ({names}). "
-                f"Use --profile to specify one.[/]"
+                f"[red]Multiple profiles configured ({names}). Use --profile to specify one.[/]"
             )
             raise typer.Exit(code=1)
         profile_cfg = cfg.profiles[0]
@@ -331,15 +325,9 @@ def review(
 
 @app.command()
 def calibrate(
-    profile: Optional[str] = typer.Option(
-        None, "--profile", help="Name of the profile to calibrate."
-    ),
-    count: int = typer.Option(
-        5, "--count", "-n", help="Number of holdout PRs to test against."
-    ),
-    history: bool = typer.Option(
-        False, "--history", help="Show calibration history."
-    ),
+    profile: str | None = typer.Option(None, "--profile", help="Name of the profile to calibrate."),
+    count: int = typer.Option(5, "--count", "-n", help="Number of holdout PRs to test against."),
+    history: bool = typer.Option(False, "--history", help="Show calibration history."),
 ) -> None:
     """Measure review quality against real reviewer comments.
 
@@ -406,6 +394,7 @@ def calibrate(
     except Exception as exc:
         console.print(f"[red]Calibration failed: {exc}[/]")
         import traceback
+
         traceback.print_exc()
         raise typer.Exit(code=1)
 
@@ -423,7 +412,7 @@ def calibrate(
     console.print(f"  [bold]Overall:               {result.avg_overall}/10[/]")
 
     # Per-PR breakdown
-    console.print(f"\n[bold]Per-PR Scores:[/]\n")
+    console.print("\n[bold]Per-PR Scores:[/]\n")
     for score in result.scores:
         status = "[green]" if score.overall >= 6 else "[yellow]" if score.overall >= 4 else "[red]"
         console.print(

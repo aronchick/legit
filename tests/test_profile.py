@@ -24,7 +24,6 @@ from legit.profile import (
     load_raw_data_as_retrieval_docs,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -44,7 +43,9 @@ def _make_config(legit_dir: Path, profile_name: str = "testuser") -> LegitConfig
     )
 
 
-def _populate_data_dir(legit_dir: Path, items: list[dict], filename: str = "pr_comments.json") -> Path:
+def _populate_data_dir(
+    legit_dir: Path, items: list[dict], filename: str = "pr_comments.json"
+) -> Path:
     """Write sample items into the data directory."""
     data_dir = legit_dir / "data" / "octocat_hello-world" / "testuser"
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -259,7 +260,7 @@ class TestBuildProfile:
     @patch("legit.profile.run_inference")
     def test_end_to_end(self, mock_inference: MagicMock, legit_dir: Path):
         items = [
-            {"body": f"Comment {i}", "created_at": f"2025-01-{i+1:02d}T00:00:00Z"}
+            {"body": f"Comment {i}", "created_at": f"2025-01-{i + 1:02d}T00:00:00Z"}
             for i in range(10)
         ]
         _populate_data_dir(legit_dir, items)

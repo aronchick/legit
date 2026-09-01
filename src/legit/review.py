@@ -7,11 +7,8 @@ self-critique pass.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
-import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -21,7 +18,7 @@ from rich.markdown import Markdown
 from legit.config import LegitConfig, legit_path
 from legit.github_client import GitHubClient, get_token, parse_pr_url
 from legit.model_runner import run_inference
-from legit.models import InlineComment, ReviewOutput
+from legit.models import ReviewOutput
 from legit.retrieval import construct_queries, format_examples, retrieve
 
 logger = logging.getLogger(__name__)
@@ -40,8 +37,7 @@ def load_profile(profile_name: str) -> str:
     profile_path = legit_path() / "profiles" / f"{profile_name}.md"
     if not profile_path.exists():
         raise FileNotFoundError(
-            f"Profile not found: {profile_path}. "
-            f"Run 'legit profile build {profile_name}' first."
+            f"Profile not found: {profile_path}. Run 'legit profile build {profile_name}' first."
         )
     return profile_path.read_text()
 
@@ -201,14 +197,25 @@ def _format_codebase_context(context_files: dict[str, str], max_total_chars: int
 
     for path, content in sorted_files:
         if remaining <= 0:
-            parts.append(f"\n*(additional files omitted — context budget exhausted)*\n")
+            parts.append("\n*(additional files omitted — context budget exhausted)*\n")
             break
 
         # Determine language hint for code fencing
         ext = path.rsplit(".", 1)[-1] if "." in path else ""
-        lang_map = {"go": "go", "py": "python", "js": "javascript", "ts": "typescript",
-                     "rs": "rust", "java": "java", "rb": "ruby", "yaml": "yaml",
-                     "yml": "yaml", "json": "json", "md": "markdown", "toml": "toml"}
+        lang_map = {
+            "go": "go",
+            "py": "python",
+            "js": "javascript",
+            "ts": "typescript",
+            "rs": "rust",
+            "java": "java",
+            "rb": "ruby",
+            "yaml": "yaml",
+            "yml": "yaml",
+            "json": "json",
+            "md": "markdown",
+            "toml": "toml",
+        }
         lang = lang_map.get(ext, "")
 
         if len(content) > remaining:
@@ -236,10 +243,13 @@ def _build_user_prompt(
     description = (metadata.get("body") or "").strip() or "(no description)"
 
     files = pr_data.get("files", [])
-    file_list = "\n".join(
-        f"- `{f.get('filename', '?')}` (+{f.get('additions', 0)}, -{f.get('deletions', 0)})"
-        for f in files
-    ) or "(no files)"
+    file_list = (
+        "\n".join(
+            f"- `{f.get('filename', '?')}` (+{f.get('additions', 0)}, -{f.get('deletions', 0)})"
+            for f in files
+        )
+        or "(no files)"
+    )
 
     diff = pr_data.get("diff", "")
     # Truncate extremely large diffs to avoid exceeding context limits
@@ -258,7 +268,9 @@ def _build_user_prompt(
     diff_savings = max(0, 120_000 - len(diff))
     codebase_budget = min(200_000 + diff_savings, 300_000)
 
-    codebase_context = _format_codebase_context(context_files or {}, max_total_chars=codebase_budget)
+    codebase_context = _format_codebase_context(
+        context_files or {}, max_total_chars=codebase_budget
+    )
 
     # Combine expertise context with codebase context
     combined_context = ""
@@ -294,9 +306,7 @@ class CritiqueItem(BaseModel):
     phrasing_sounds_like_them: str = Field(
         description="Does the phrasing sound like the reviewer? yes/close/no"
     )
-    already_covered: str = Field(
-        description="Is this already covered by existing threads? yes/no"
-    )
+    already_covered: str = Field(description="Is this already covered by existing threads? yes/no")
 
 
 class CritiqueOutput(BaseModel):
@@ -389,7 +399,9 @@ def _run_self_critique(
             drop_indices.add(idx)
 
     if drop_indices:
-        logger.info("Self-critique dropping %d/%d comments", len(drop_indices), len(review.inline_comments))
+        logger.info(
+            "Self-critique dropping %d/%d comments", len(drop_indices), len(review.inline_comments)
+        )
 
     filtered = [c for i, c in enumerate(review.inline_comments) if i not in drop_indices]
     return ReviewOutput(
@@ -502,14 +514,16 @@ def _post_review_to_github(
     for comment in review.inline_comments:
         # The GitHub Review API expects comments with path and body.
         # We use a single-comment review body approach for simplicity.
-        comments_payload.append({
-            "path": comment.file,
-            "body": comment.comment,
-            # Use the hunk_header to place the comment; position is relative
-            # to the diff. We place at position 1 as a safe fallback since
-            # exact line mapping requires parsing the diff ranges.
-            "position": 1,
-        })
+        comments_payload.append(
+            {
+                "path": comment.file,
+                "body": comment.comment,
+                # Use the hunk_header to place the comment; position is relative
+                # to the diff. We place at position 1 as a safe fallback since
+                # exact line mapping requires parsing the diff ranges.
+                "position": 1,
+            }
+        )
 
     payload: dict = {
         "body": review_body,
@@ -559,11 +573,14 @@ def generate_review(
 
     # Load pre-built expertise index (optional — degrades gracefully)
     from legit.expertise import format_expertise_context, load_expertise_index, lookup_expertise
+
     expertise_index = load_expertise_index(profile_name)
     if expertise_index:
-        console.print(f"  [dim]Loaded expertise index ({len(expertise_index.entries)} directories)[/]")
+        console.print(
+            f"  [dim]Loaded expertise index ({len(expertise_index.entries)} directories)[/]"
+        )
     else:
-        console.print(f"  [dim]No expertise index — run 'legit build' to generate[/]")
+        console.print("  [dim]No expertise index — run 'legit build' to generate[/]")
 
     # -- Step 2: Fetch PR data -----------------------------------------------
     console.print(f"[bold]Fetching PR:[/] {pr_url}")
@@ -577,7 +594,9 @@ def generate_review(
         # -- Step 2b: Fetch codebase context (full source files) ----------------
         console.print("[bold]Fetching codebase context...[/]")
         context_files = gh.fetch_pr_context_files(pr_url, pr_data)
-        console.print(f"  Fetched {len(context_files)} source files ({sum(len(v) for v in context_files.values()) // 1024}KB)")
+        console.print(
+            f"  Fetched {len(context_files)} source files ({sum(len(v) for v in context_files.values()) // 1024}KB)"
+        )
 
     # -- Step 3: Retrieve similar past comments ------------------------------
     console.print("[bold]Retrieving similar past comments...[/]")
@@ -588,7 +607,8 @@ def generate_review(
     pr_changed_files = [f.get("filename", "") for f in pr_data.get("files", [])]
 
     # Try semantic search first, fall back to BM25
-    from legit.embeddings import is_available as embeddings_available, load_embedding_index
+    from legit.embeddings import is_available as embeddings_available
+    from legit.embeddings import load_embedding_index
 
     retrieval_method = "bm25"
     embedding_index = load_embedding_index(profile_name) if embeddings_available() else None
@@ -600,7 +620,8 @@ def generate_review(
         if not query_texts:
             query_texts = queries  # fallback to BM25-style text queries
         retrieved_docs = embedding_index.search_as_retrieval_docs(
-            query_texts, top_k=config.retrieval.top_k,
+            query_texts,
+            top_k=config.retrieval.top_k,
         )
         console.print(f"  Retrieved {len(retrieved_docs)} examples via semantic search")
     else:
@@ -634,7 +655,8 @@ def generate_review(
     # -- Step 4: Construct prompt --------------------------------------------
     system_prompt = _build_system_prompt(profile_name, profile_document, examples_text)
     user_prompt = _build_user_prompt(
-        profile_name, pr_data,
+        profile_name,
+        pr_data,
         context_files=context_files,
         expertise_context=expertise_context,
     )
@@ -671,7 +693,9 @@ def generate_review(
 
     # -- Steps 7 & 8: Threshold filtering and max_comments cap ---------------
     review = _apply_filters(review, config)
-    console.print(f"  After filtering: {len(review.inline_comments)} comments (threshold={config.review.abstention_threshold})")
+    console.print(
+        f"  After filtering: {len(review.inline_comments)} comments (threshold={config.review.abstention_threshold})"
+    )
 
     # -- Step 9: Output ------------------------------------------------------
     if dry_run:

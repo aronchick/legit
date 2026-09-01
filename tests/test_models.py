@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-import pytest
-from pydantic import ValidationError
+from datetime import UTC, datetime
 
 from legit.models import (
     ChunkObservation,
@@ -16,7 +13,6 @@ from legit.models import (
     RetrievalDocument,
     ReviewOutput,
 )
-
 
 # ---------------------------------------------------------------------------
 # IndexEntry
@@ -29,7 +25,7 @@ class TestIndexEntry:
             id=123,
             type="pr_comment",
             url="https://api.github.com/repos/o/r/pulls/comments/123",
-            created_at=datetime(2025, 1, 15, tzinfo=timezone.utc),
+            created_at=datetime(2025, 1, 15, tzinfo=UTC),
         )
         assert entry.id == 123
         assert entry.type == "pr_comment"
@@ -42,8 +38,8 @@ class TestIndexEntry:
             id="abc123",
             type="commit",
             url="https://api.github.com/repos/o/r/commits/abc123",
-            created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
-            updated_at=datetime(2025, 1, 2, tzinfo=timezone.utc),
+            created_at=datetime(2025, 1, 1, tzinfo=UTC),
+            updated_at=datetime(2025, 1, 2, tzinfo=UTC),
             fetched=True,
             pr_number=42,
         )
@@ -56,7 +52,7 @@ class TestIndexEntry:
             id=1,
             type="review",
             url="https://example.com",
-            created_at=datetime(2025, 6, 1, tzinfo=timezone.utc),
+            created_at=datetime(2025, 6, 1, tzinfo=UTC),
             pr_number=99,
         )
         data = entry.model_dump(mode="json")
@@ -66,8 +62,8 @@ class TestIndexEntry:
         assert restored.pr_number == 99
 
     def test_id_can_be_string_or_int(self):
-        e1 = IndexEntry(id=42, type="issue", url="", created_at=datetime.now(tz=timezone.utc))
-        e2 = IndexEntry(id="sha123", type="commit", url="", created_at=datetime.now(tz=timezone.utc))
+        e1 = IndexEntry(id=42, type="issue", url="", created_at=datetime.now(tz=UTC))
+        e2 = IndexEntry(id="sha123", type="commit", url="", created_at=datetime.now(tz=UTC))
         assert e1.id == 42
         assert e2.id == "sha123"
 
@@ -86,7 +82,7 @@ class TestCursorState:
         assert cs.last_timestamp is None
 
     def test_serialization(self):
-        cs = CursorState(page=3, complete=True, last_timestamp=datetime(2025, 1, 1, tzinfo=timezone.utc))
+        cs = CursorState(page=3, complete=True, last_timestamp=datetime(2025, 1, 1, tzinfo=UTC))
         data = cs.model_dump(mode="json")
         restored = CursorState.model_validate(data)
         assert restored.page == 3
@@ -170,9 +166,7 @@ class TestReviewOutput:
         assert ro.abstention_reason == ""
 
     def test_with_comments(self):
-        comments = [
-            InlineComment(file="a.py", hunk_header="@@", diff_snippet="+x", comment="fix")
-        ]
+        comments = [InlineComment(file="a.py", hunk_header="@@", diff_snippet="+x", comment="fix")]
         ro = ReviewOutput(summary="Needs work", inline_comments=comments)
         assert len(ro.inline_comments) == 1
         assert ro.inline_comments[0].file == "a.py"

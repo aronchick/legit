@@ -18,7 +18,6 @@ from legit.models import InlineComment, ReviewOutput
 from legit.review import CritiqueItem, CritiqueOutput
 from legit.web import app
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -117,11 +116,11 @@ SAMPLE_PR_DATA = {
         "+++ b/pkg/auth/middleware.go\n"
         "@@ -15,6 +15,12 @@ func AuthMiddleware(next http.Handler) http.Handler {\n"
         "+    if claims == nil {\n"
-        "+        http.Error(w, \"unauthorized\", http.StatusUnauthorized)\n"
+        '+        http.Error(w, "unauthorized", http.StatusUnauthorized)\n'
         "+        return\n"
         "+    }\n"
-        "+    if claims.UserID == \"\" {\n"
-        "+        http.Error(w, \"invalid token\", http.StatusForbidden)\n"
+        '+    if claims.UserID == "" {\n'
+        '+        http.Error(w, "invalid token", http.StatusForbidden)\n'
         "+        return\n"
         "+    }\n"
     ),
@@ -235,7 +234,10 @@ class TestReviewEndpoint:
         client = TestClient(app)
         resp = client.post(
             "/review",
-            data={"pr_url": "https://github.com/octocat/hello-world/pull/200", "profile_name": "sample-reviewer"},
+            data={
+                "pr_url": "https://github.com/octocat/hello-world/pull/200",
+                "profile_name": "sample-reviewer",
+            },
         )
 
         assert resp.status_code == 200
@@ -291,7 +293,10 @@ class TestReviewEndpoint:
         client = TestClient(app)
         resp = client.post(
             "/review",
-            data={"pr_url": "https://github.com/octocat/hello-world/pull/200", "profile_name": "sample-reviewer"},
+            data={
+                "pr_url": "https://github.com/octocat/hello-world/pull/200",
+                "profile_name": "sample-reviewer",
+            },
         )
 
         assert resp.status_code == 200
@@ -334,7 +339,12 @@ class TestReviewEndpoint:
         )
         critique = CritiqueOutput(
             assessments=[
-                CritiqueItem(comment_index=0, would_reviewer_leave_this="yes", phrasing_sounds_like_them="yes", already_covered="no"),
+                CritiqueItem(
+                    comment_index=0,
+                    would_reviewer_leave_this="yes",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="no",
+                ),
             ]
         )
         mock_inference.side_effect = [review_with_abstentions, critique]
@@ -342,7 +352,10 @@ class TestReviewEndpoint:
         client = TestClient(app)
         resp = client.post(
             "/review",
-            data={"pr_url": "https://github.com/octocat/hello-world/pull/200", "profile_name": "sample-reviewer"},
+            data={
+                "pr_url": "https://github.com/octocat/hello-world/pull/200",
+                "profile_name": "sample-reviewer",
+            },
         )
 
         assert resp.status_code == 200
@@ -376,7 +389,10 @@ class TestReviewErrors:
         client = TestClient(app)
         resp = client.post(
             "/review",
-            data={"pr_url": "https://github.com/octocat/hello-world/pull/999", "profile_name": "sample-reviewer"},
+            data={
+                "pr_url": "https://github.com/octocat/hello-world/pull/999",
+                "profile_name": "sample-reviewer",
+            },
         )
 
         assert resp.status_code == 200  # Page renders, error shown inline
@@ -403,7 +419,10 @@ class TestReviewErrors:
         client = TestClient(app)
         resp = client.post(
             "/review",
-            data={"pr_url": "https://github.com/octocat/hello-world/pull/200", "profile_name": "sample-reviewer"},
+            data={
+                "pr_url": "https://github.com/octocat/hello-world/pull/200",
+                "profile_name": "sample-reviewer",
+            },
         )
 
         assert resp.status_code == 200
@@ -414,7 +433,10 @@ class TestReviewErrors:
         client = TestClient(app)
         resp = client.post(
             "/review",
-            data={"pr_url": "https://github.com/octocat/hello-world/pull/1", "profile_name": "nonexistent-reviewer"},
+            data={
+                "pr_url": "https://github.com/octocat/hello-world/pull/1",
+                "profile_name": "nonexistent-reviewer",
+            },
         )
         assert resp.status_code == 200
         assert "not found" in resp.text.lower() or "error" in resp.text.lower()
@@ -461,7 +483,10 @@ class TestMultiFilePR:
         _legit_env: Path,
     ):
         """Simulate a PR with 10+ files and verify the pipeline handles it."""
-        files = [{"filename": f"pkg/module{i}/handler.go", "additions": i * 5, "deletions": i} for i in range(12)]
+        files = [
+            {"filename": f"pkg/module{i}/handler.go", "additions": i * 5, "deletions": i}
+            for i in range(12)
+        ]
         diff_parts = []
         for i in range(12):
             diff_parts.append(
@@ -482,7 +507,11 @@ class TestMultiFilePR:
             "diff": "\n".join(diff_parts),
             "files": files,
             "comments": [
-                {"body": "Have you tested all 12 modules?", "user": {"login": "reviewer-x"}, "path": ""},
+                {
+                    "body": "Have you tested all 12 modules?",
+                    "user": {"login": "reviewer-x"},
+                    "path": "",
+                },
             ],
             "reviews": [
                 {"body": "Needs another pass.", "user": {"login": "reviewer-y"}},
@@ -531,7 +560,10 @@ class TestMultiFilePR:
         client = TestClient(app)
         resp = client.post(
             "/review",
-            data={"pr_url": "https://github.com/octocat/hello-world/pull/500", "profile_name": "sample-reviewer"},
+            data={
+                "pr_url": "https://github.com/octocat/hello-world/pull/500",
+                "profile_name": "sample-reviewer",
+            },
         )
 
         assert resp.status_code == 200
