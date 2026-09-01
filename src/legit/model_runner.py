@@ -206,6 +206,12 @@ def _run_api(prompt: str, model_name: str | None, timeout: int, temperature: flo
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
         timeout=timeout,
+        # Reasoning models (gpt-5.x, gemini-3.x) reject fixed temperatures —
+        # drop unsupported params instead of erroring. Their hidden reasoning
+        # also eats the output budget, so give structured responses headroom
+        # or JSON gets truncated mid-string.
+        drop_params=True,
+        max_tokens=16384,
         **kwargs,
     )
     content = resp.choices[0].message.content  # type: ignore[union-attr]
