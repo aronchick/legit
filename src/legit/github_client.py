@@ -121,14 +121,24 @@ class GitHubTransport:
         headers: dict | None = None,
     ) -> httpx.Response:
         for attempt in range(MAX_RETRIES):
-            resp = self._client.request(method, path, params=params, headers=headers)
+            try:
+                resp = self._client.request(method, path, params=params, headers=headers)
+            except httpx.TransportError as exc:
+                # Connection drops ("Server disconnected"), timeouts, and
+                # incomplete reads are transient — retry like a 5xx.
+                wait = BACKOFF_BASE**attempt
+                console.print(f"[yellow]Connection error ({exc}). Retrying in {wait:.0f}s…[/]")
+                time.sleep(wait)
+                continue
 
             # Success
             if resp.status_code < 400:
                 return resp
 
             # Rate-limited (primary or secondary)
-            if resp.status_code == 403 and "rate limit" in resp.text.lower():
+            if resp.status_code == 429 or (
+                resp.status_code == 403 and "rate limit" in resp.text.lower()
+            ):
                 wait = self._rate_limit_wait(resp, attempt)
                 console.print(
                     f"[yellow]Rate limited. Waiting {wait:.0f}s (attempt {attempt + 1})…[/]"
@@ -148,8 +158,12 @@ class GitHubTransport:
             # Hard error
             resp.raise_for_status()
 
-        # Exhausted retries
-        resp.raise_for_status()
+        # Exhausted retries. resp is unbound when every attempt raised a
+        # transport error, so don't touch it blindly.
+        try:
+            resp.raise_for_status()
+        except NameError:
+            raise OSError(f"GitHub request failed after {MAX_RETRIES} attempts: {method} {path}")
         return resp  # unreachable but satisfies type checker
 
     def get(
@@ -443,6 +457,13 @@ class GitHubClient:
 
             if fetched_count % 50 == 0:
                 console.print(f"  fetched {fetched_count}/{len(pending)}…")
+
+            # Checkpoint periodically — a multi-hour download must not lose
+            # everything to one crash.
+            if fetched_count % 200 == 0:
+                for bname, bitems in buckets.items():
+                    _save_json(ddir / f"{bname}.json", bitems)
+                _save_index(index_path, index)
 
         # Save bucket files and updated index
         for bucket_name, items in buckets.items():
