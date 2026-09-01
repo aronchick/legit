@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Learn a GitHub reviewer's style and generate PR reviews in their voice"
 readme = "README.md"
 authors = [
-    { name = "Aaron Aronchick", email = "aronchick@gmail.com" }
+    { name = "David Aronchick", email = "aronchick@gmail.com" }
 ]
 requires-python = ">=3.11"
 dependencies = [
