@@ -706,7 +706,10 @@ def build_profile(
         from legit.embeddings import build_embedding_index, save_embedding_index
 
         logger.info("Building semantic embedding index…")
-        retrieval_docs = load_raw_data_as_retrieval_docs(config, profile_name)
+        # Same temporal boundary as the profile — an unfiltered embedding
+        # index would let eval-time retrieval surface the reviewer's real
+        # comments from holdout-era PRs.
+        retrieval_docs = load_raw_data_as_retrieval_docs(config, profile_name, before=before)
         emb_index = build_embedding_index(profile_name, retrieval_docs)
         emb_path = save_embedding_index(profile_name, emb_index)
         logger.info(

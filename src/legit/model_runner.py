@@ -357,7 +357,10 @@ def run_inference(
     full_prompt = "\n\n".join(full_prompt_parts)
 
     # --- Invoke the backend ---------------------------------------------------
-    timeout = DEFAULT_TIMEOUT
+    import os
+
+    # Self-hosted models on long prompts can legitimately need >5 minutes.
+    timeout = int(os.environ.get("LEGIT_MODEL_TIMEOUT", DEFAULT_TIMEOUT))
     backend = _BACKENDS[provider]
     model_name = config.name
     temperature = config.temperature
