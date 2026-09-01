@@ -1,0 +1,6 @@
+tunnel: 83df6b9c-f6cd-4472-add8-b6b9f85fb553
+credentials-file: /Users/daaronch/.config/cloudflared/83df6b9c-f6cd-4472-add8-b6b9f85fb553.json
+ingress:
+  - hostname: legit.busted.dev
+    service: http://localhost:8142
+  - service: http_status:404

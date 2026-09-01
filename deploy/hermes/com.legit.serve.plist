@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.legit.serve</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/daaronch/code/legit</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/daaronch/.local/bin/uv</string>
+        <string>run</string>
+        <string>legit</string>
+        <string>serve</string>
+        <string>--host</string>
+        <string>127.0.0.1</string>
+        <string>--port</string>
+        <string>8142</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/daaronch/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>/Users/daaronch</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/daaronch/Library/Logs/legit-serve.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/daaronch/Library/Logs/legit-serve.log</string>
+</dict>
+</plist>
