@@ -99,7 +99,13 @@ def _extract_json(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _run_claude(prompt: str, model_name: str | None, timeout: int, temperature: float) -> str:
+def _run_claude(
+    prompt: str,
+    model_name: str | None,
+    timeout: int,
+    temperature: float,
+    api_base: str | None = None,
+) -> str:
     """Run the ``claude`` CLI and return its stdout.
 
     Always pipes the prompt via stdin to avoid hitting the OS ``ARG_MAX``
@@ -129,7 +135,13 @@ def _run_claude(prompt: str, model_name: str | None, timeout: int, temperature: 
     return result.stdout.strip()
 
 
-def _run_gemini(prompt: str, model_name: str | None, timeout: int, temperature: float) -> str:
+def _run_gemini(
+    prompt: str,
+    model_name: str | None,
+    timeout: int,
+    temperature: float,
+    api_base: str | None = None,
+) -> str:
     """Run the ``gemini`` CLI and return its stdout."""
     cli = _check_cli("gemini")
 
@@ -152,7 +164,13 @@ def _run_gemini(prompt: str, model_name: str | None, timeout: int, temperature: 
     return result.stdout.strip()
 
 
-def _run_codex(prompt: str, model_name: str | None, timeout: int, temperature: float) -> str:
+def _run_codex(
+    prompt: str,
+    model_name: str | None,
+    timeout: int,
+    temperature: float,
+    api_base: str | None = None,
+) -> str:
     """Run the ``codex`` CLI in non-interactive mode and return its output."""
     cli = _check_cli("codex")
 
@@ -182,7 +200,13 @@ def _run_codex(prompt: str, model_name: str | None, timeout: int, temperature: f
         return result.stdout.strip()
 
 
-def _run_api(prompt: str, model_name: str | None, timeout: int, temperature: float) -> str:
+def _run_api(
+    prompt: str,
+    model_name: str | None,
+    timeout: int,
+    temperature: float,
+    api_base: str | None = None,
+) -> str:
     """Call a hosted or self-hosted model directly through litellm (no CLI).
 
     ``model_name`` is a litellm model string — e.g. ``openai/gpt-5.3-codex``,
@@ -197,7 +221,6 @@ def _run_api(prompt: str, model_name: str | None, timeout: int, temperature: flo
     import litellm
 
     kwargs: dict = {}
-    api_base = os.environ.get("LEGIT_MODEL_API_BASE")
     if api_base:
         kwargs["api_base"] = api_base
 
@@ -211,7 +234,7 @@ def _run_api(prompt: str, model_name: str | None, timeout: int, temperature: flo
         # also eats the output budget, so give structured responses headroom
         # or JSON gets truncated mid-string.
         drop_params=True,
-        max_tokens=16384,
+        max_tokens=int(os.environ.get("LEGIT_MODEL_MAX_TOKENS", "16384")),
         **kwargs,
     )
     content = resp.choices[0].message.content  # type: ignore[union-attr]
@@ -375,7 +398,7 @@ def run_inference(
     model_name = config.name
     temperature = config.temperature
 
-    raw = backend(full_prompt, model_name, timeout, temperature)
+    raw = backend(full_prompt, model_name, timeout, temperature, config.api_base)
 
     # --- Plain text mode ------------------------------------------------------
     if response_model is None:
@@ -396,7 +419,7 @@ def run_inference(
             )
             if attempt < _MAX_REPAIR_RETRIES:
                 repair = _repair_prompt(full_prompt, raw, last_error)
-                raw = backend(repair, model_name, timeout, temperature)
+                raw = backend(repair, model_name, timeout, temperature, config.api_base)
 
     # All retries exhausted — return raw text
     logger.error("Structured output parsing failed after retries; returning raw text.")

@@ -51,7 +51,7 @@ def test_run_api_defaults_model(monkeypatch):
     assert captured["model"] == "gemini/gemini-3.1-pro-preview"
 
 
-def test_api_base_env_passthrough(monkeypatch):
+def test_api_base_param_passthrough(monkeypatch):
     captured = {}
 
     def fake_completion(**kwargs):
@@ -61,14 +61,24 @@ def test_api_base_env_passthrough(monkeypatch):
     import litellm
 
     monkeypatch.setattr(litellm, "completion", fake_completion)
-    monkeypatch.setenv("LEGIT_MODEL_API_BASE", "http://gpu-box:11434")
-    _run_api("p", "ollama_chat/qwen3-coder:30b", 300, 0.0)
+    _run_api("p", "ollama_chat/qwen3-coder:30b", 300, 0.0, api_base="http://gpu-box:11434")
     assert captured["api_base"] == "http://gpu-box:11434"
 
     captured.clear()
-    monkeypatch.delenv("LEGIT_MODEL_API_BASE")
     _run_api("p", "openai/gpt-5.3-codex", 300, 0.0)
     assert "api_base" not in captured
+
+
+def test_api_base_env_scopes_to_primary_config_only(tmp_path: Path, monkeypatch):
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(yaml.dump({"model": {"provider": "api"}}))
+    monkeypatch.setenv("LEGIT_MODEL_API_BASE", "http://gpu-box:11434")
+    cfg = load_config(cfg_path)
+    assert cfg.model.api_base == "http://gpu-box:11434"
+    # A separately-built judge config must not inherit the endpoint
+    from legit.config import ModelConfig
+
+    assert ModelConfig(provider="api", name="gemini/g").api_base is None
 
 
 def test_env_overrides_model_provider(tmp_path: Path, monkeypatch):

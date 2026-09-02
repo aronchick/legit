@@ -13,6 +13,10 @@ class ModelConfig(BaseModel):
     provider: str = "gemini"
     name: str | None = None
     temperature: float = 0.3
+    # Non-default endpoint for the 'api' provider (ollama, vLLM, fine-tuned
+    # models). Scoped here, not env-global, so a pinned judge model is never
+    # routed to the generation model's endpoint.
+    api_base: str | None = None
 
 
 class GitHubConfig(BaseModel):
@@ -92,6 +96,8 @@ def load_config(path: Path | None = None) -> LegitConfig:
         cfg.model.provider = os.environ["LEGIT_MODEL_PROVIDER"]
     if os.environ.get("LEGIT_MODEL_NAME"):
         cfg.model.name = os.environ["LEGIT_MODEL_NAME"]
+    if os.environ.get("LEGIT_MODEL_API_BASE"):
+        cfg.model.api_base = os.environ["LEGIT_MODEL_API_BASE"]
     return cfg
 
 
