@@ -7,7 +7,13 @@
 - [ ] Burn down remaining 149 ruff errors (mostly E501) and 136 mypy-strict errors
 - [ ] Re-fetch corpora for wdbaruni and thockin (`legit fetch`; data/ is gitignored and absent)
 - [ ] Rebuild profiles and indexes (`legit build`)
-- [ ] Baseline calibration run for wdbaruni and thockin; record scores in .legit/calibration/
+- [x] Baseline calibration run for thockin and liggitt (2026-09-01, corrected scoring,
+      gemini-3.1-pro judge, holdout PRs created+merged after 2026-04-01):
+      liggitt n=5 — gpt-5.6-sol 1.9, gpt-5.3-codex 1.4, qwen3-30b 0.1 overall;
+      issue detection 0.0 on every lane. Finding: the bottleneck is input context
+      (CI results, threads, history the real reviewers reacted to), not model choice.
+      thockin clean n=1 — needs a wider holdout pool (see Phase 1 full-history work).
+- [ ] Baseline calibration for wdbaruni (profile exists on legitpr.dev; corpus re-fetch pending)
 - [ ] Add hashimoto profile (ghostty-org/ghostty, username mitchellh) to config; fetch + build
 - [ ] Have Walid eyeball the wdbaruni persona's output for fidelity (free ground truth)
 
