@@ -90,8 +90,10 @@ def find_holdout_prs(
     When *merged_after* is set, only PRs created AND merged on/after that date
     qualify, so nothing the profile trained on can appear in the eval set.
     """
-    # Search for PRs this user reviewed with comments
-    q = f"repo:{owner}/{repo} is:pr is:merged reviewed-by:{username} comments:>3"
+    # Search for PRs this user reviewed with comments. Exclude PRs they
+    # authored — their inline comments there are author replies ("Done in
+    # next push"), not reviews, and poison the ground truth.
+    q = f"repo:{owner}/{repo} is:pr is:merged reviewed-by:{username} -author:{username} comments:>3"
     if merged_after:
         q += f" created:>={merged_after} merged:>={merged_after}"
     resp = gh._transport.get(
@@ -266,6 +268,13 @@ def _score_review(
     )
 
     if isinstance(result, JudgeOutput):
+        # Total silence where the real reviewer spoke is not "perfect
+        # abstention" — without this, a model that generates nothing outscores
+        # one that honestly tries and misses.
+        if not generated.inline_comments and holdout.reviewer_comment_count > 0:
+            result.appropriate_abstention = 0.0
+            result.false_positives = 0.0
+
         overall = (
             result.issue_detection * 0.35
             + result.voice_fidelity * 0.25

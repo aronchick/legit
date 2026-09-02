@@ -77,6 +77,10 @@ class TestHoldoutSearchQuery:
         assert "created:>=2026-04-01" in q
         assert "merged:>=2026-04-01" in q
 
+    def test_authored_prs_excluded(self, monkeypatch):
+        q = self._capture_query(monkeypatch, None)
+        assert "-author:thockin" in q
+
     def test_no_boundary_leaves_query_unchanged(self, monkeypatch):
         q = self._capture_query(monkeypatch, None)
         assert "created:" not in q
