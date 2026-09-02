@@ -78,11 +78,11 @@ def _extract_json(text: str) -> str:
     if m:
         return m.group(1).strip()
 
-    # Fall back to outermost braces / brackets
-    for open_ch, close_ch in [("{", "}"), ("[", "]")]:
-        start = text.find(open_ch)
-        if start == -1:
-            continue
+    # Fall back to outermost braces / brackets — whichever opens first, so a
+    # top-level JSON array isn't shredded into its first element object.
+    candidates = [(text.find(c), c, cl) for c, cl in [("{", "}"), ("[", "]")]]
+    candidates = sorted((s, c, cl) for s, c, cl in candidates if s != -1)
+    for start, open_ch, close_ch in candidates:
         depth = 0
         for i in range(start, len(text)):
             if text[i] == open_ch:
