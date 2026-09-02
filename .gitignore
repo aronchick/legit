@@ -5,4 +5,4 @@ __pycache__/
 .legit/index/
 .legit/profiles/
 .legit/calibration/
-.legit/*.log
+.legit/*.log*
