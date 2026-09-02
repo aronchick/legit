@@ -224,19 +224,28 @@ def _run_api(
     if api_base:
         kwargs["api_base"] = api_base
 
-    resp = litellm.completion(
-        model=model_name or "gemini/gemini-3.1-pro-preview",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=temperature,
-        timeout=timeout,
+    call_kwargs: dict = {
+        "model": model_name or "gemini/gemini-3.1-pro-preview",
+        "messages": [{"role": "user", "content": prompt}],
+        "timeout": timeout,
         # Reasoning models (gpt-5.x, gemini-3.x) reject fixed temperatures —
         # drop unsupported params instead of erroring. Their hidden reasoning
         # also eats the output budget, so give structured responses headroom
         # or JSON gets truncated mid-string.
-        drop_params=True,
-        max_tokens=int(os.environ.get("LEGIT_MODEL_MAX_TOKENS", "16384")),
+        "drop_params": True,
+        "max_tokens": int(os.environ.get("LEGIT_MODEL_MAX_TOKENS", "16384")),
         **kwargs,
-    )
+    }
+    try:
+        resp = litellm.completion(temperature=temperature, **call_kwargs)
+    except litellm.BadRequestError as exc:
+        # drop_params only strips params litellm's registry knows a model
+        # rejects; brand-new models aren't in the registry yet, so the API
+        # itself refuses. Retry once at the provider default.
+        if "temperature" not in str(exc):
+            raise
+        logger.warning("Model rejected temperature=%s; retrying at default", temperature)
+        resp = litellm.completion(**call_kwargs)
     content = resp.choices[0].message.content  # type: ignore[union-attr]
     return (content or "").strip()
 
