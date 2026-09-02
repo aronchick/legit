@@ -291,6 +291,16 @@ def _try_parse(text: str, response_model: type[BaseModel]) -> BaseModel:
     """Extract JSON from *text* and validate against *response_model*."""
     raw_json = _extract_json(text)
     data = json.loads(raw_json)
+    if isinstance(data, list):
+        # Models frequently emit just the list payload (e.g. bare inline
+        # comments) instead of the wrapping object. If exactly one wrapping
+        # interpretation validates, accept it rather than burning repair
+        # retries on a formatting quibble.
+        for field_name in response_model.model_fields:
+            try:
+                return response_model.model_validate({field_name: data})
+            except ValidationError:
+                continue
     return response_model.model_validate(data)
 
 

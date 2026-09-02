@@ -40,7 +40,9 @@ class InlineComment(BaseModel):
 
 
 class ReviewOutput(BaseModel):
-    summary: str
+    # Default rather than required: models sometimes emit a bare list of
+    # inline comments, which _try_parse wraps into {"inline_comments": ...}.
+    summary: str = ""
     inline_comments: list[InlineComment] = Field(default_factory=list)
     abstained_files: list[str] = Field(default_factory=list)
     abstention_reason: str = ""

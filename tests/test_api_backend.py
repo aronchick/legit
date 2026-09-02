@@ -82,6 +82,21 @@ def test_env_overrides_model_provider(tmp_path: Path, monkeypatch):
     assert cfg.model.name == "gemini/gemini-3.1-pro-preview"
 
 
+def test_bare_list_wrapped_into_review_output():
+    from legit.model_runner import _try_parse
+    from legit.models import ReviewOutput
+
+    bare_list = (
+        '[{"file": "a.go", "hunk_header": "@@", "diff_snippet": "x",'
+        ' "comment": "nit", "confidence": 0.9}]'
+    )
+    result = _try_parse(bare_list, ReviewOutput)
+    assert isinstance(result, ReviewOutput)
+    assert len(result.inline_comments) == 1
+    assert result.inline_comments[0].file == "a.go"
+    assert result.summary == ""
+
+
 def test_no_env_overrides_keeps_config(tmp_path: Path, monkeypatch):
     cfg_path = tmp_path / "config.yaml"
     cfg_path.write_text(yaml.dump({"model": {"provider": "claude"}}))
