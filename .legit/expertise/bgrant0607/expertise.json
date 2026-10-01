@@ -1,5 +1,73 @@
 {
-  "profile_name": "bgrant0607-k8s",
-  "entries": {},
-  "total_comments_analyzed": 0
+  "profile_name": "bgrant0607",
+  "entries": {
+    "kubernetes/kubernetes:pkg/client/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "pkg/client/",
+      "comment_count": 3,
+      "severity_distribution": {
+        "observation": 2,
+        "praise": 1
+      },
+      "themes": [
+        {
+          "theme": "naming",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "We should eliminate minions, at least in v1.",
+          "file": "pkg/client/request.go",
+          "date": "2015-06-17T20:14:41Z"
+        },
+        {
+          "text": "Good point. Yes, we should fix those.",
+          "file": "pkg/client/request.go",
+          "date": "2015-06-18T20:00:44Z"
+        },
+        {
+          "text": "PodHost is spec.nodeName in v1.",
+          "file": "pkg/client/request.go",
+          "date": "2015-06-17T20:10:48Z"
+        }
+      ],
+      "last_activity": "2015-06-18T20:00:44Z"
+    },
+    "kubernetes/kubernetes:docs/design/": {
+      "repo": "kubernetes/kubernetes",
+      "dir_path": "docs/design/",
+      "comment_count": 5,
+      "severity_distribution": {
+        "praise": 1,
+        "observation": 3,
+        "question": 1
+      },
+      "themes": [],
+      "example_quotes": [
+        {
+          "text": "I saw this in another PR. Code links aren't going to work on gh_pages. I think we should punt on that, though. I don't see a good solution.",
+          "file": "docs/design/event_compression.md",
+          "date": "2015-07-16T23:21:56Z"
+        },
+        {
+          "text": "IIRC the nested struct was used in order to permit additional info to be added for each version in the future.",
+          "file": "docs/design/extending-api.md",
+          "date": "2015-10-02T21:37:46Z"
+        },
+        {
+          "text": "@lavalamp Was that intentional, since there is no conversion between versions?",
+          "file": "docs/design/extending-api.md",
+          "date": "2015-10-02T17:56:33Z"
+        },
+        {
+          "text": "This makes it impossible to create multiple versions in the same group.",
+          "file": "docs/design/extending-api.md",
+          "date": "2015-10-02T17:54:20Z"
+        }
+      ],
+      "last_activity": "2015-10-03T05:55:42Z"
+    }
+  },
+  "total_comments_analyzed": 12
 }

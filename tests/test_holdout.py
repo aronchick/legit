@@ -21,10 +21,10 @@ class TestFilterItemsBefore:
         kept = _filter_items_before(items, "2026-04-01")
         assert [i["body"] for i in kept] == ["old"]
 
-    def test_keeps_items_without_timestamps(self):
+    def test_drops_items_without_timestamps(self):
         items = [{"body": "undated"}, {"created_at": "2026-05-01T00:00:00Z", "body": "new"}]
         kept = _filter_items_before(items, "2026-04-01")
-        assert [i["body"] for i in kept] == ["undated"]
+        assert kept == []
 
     def test_reads_submitted_at_and_commit_dates(self):
         items = [

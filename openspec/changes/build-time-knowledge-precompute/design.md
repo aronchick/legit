@@ -198,25 +198,25 @@ The `generate_review()` function changes from:
 
 ```python
 # Old
-profile = load_profile(name)              # 0s
-pr_data = gh.fetch_pr_for_review(url)     # 2s
+profile = load_profile(name)  # 0s
+pr_data = gh.fetch_pr_for_review(url)  # 2s
 context = gh.fetch_pr_context_files(...)  # 3-10s (N API calls)
-examples = bm25_retrieve(queries)          # 0.1s
+examples = bm25_retrieve(queries)  # 0.1s
 prompt = build_prompt(profile, examples, pr_data, context)
-review = llm(prompt)                       # 60-120s
+review = llm(prompt)  # 60-120s
 ```
 
 To:
 
 ```python
 # New
-profile = load_profile(name)              # 0s
-expertise = load_expertise(name)          # 0s
-corpus = load_corpus(name)                # 0s
-embeddings = load_embeddings(name)        # 0.1s (load vectors into memory)
-repo_tree = load_repo_skeleton(repo)      # 0s
+profile = load_profile(name)  # 0s
+expertise = load_expertise(name)  # 0s
+corpus = load_corpus(name)  # 0s
+embeddings = load_embeddings(name)  # 0.1s (load vectors into memory)
+repo_tree = load_repo_skeleton(repo)  # 0s
 
-pr_data = gh.fetch_pr_for_review(url)     # 2s
+pr_data = gh.fetch_pr_for_review(url)  # 2s
 context = gh.fetch_pr_context_files(...)  # 2-5s (still live for accuracy)
 
 # Fast retrieval against pre-built indexes
@@ -227,13 +227,13 @@ structural_context = get_structural_context(repo_tree, pr_changed_files)  # 0s
 # Focused, smaller prompt
 prompt = build_prompt(
     profile,
-    relevant_expertise,   # Only expertise for the areas being changed
-    matched_examples,     # Semantically matched, not keyword matched
-    structural_context,   # Repo structure around changed files
+    relevant_expertise,  # Only expertise for the areas being changed
+    matched_examples,  # Semantically matched, not keyword matched
+    structural_context,  # Repo structure around changed files
     pr_data,
     context,
 )
-review = llm(prompt)                      # 30-60s (smaller, more focused prompt)
+review = llm(prompt)  # 30-60s (smaller, more focused prompt)
 ```
 
 ## Config Changes

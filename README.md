@@ -26,3 +26,30 @@ uv run legit serve               # web UI on port 8142
 4. **Calibrate** — LLM-as-judge compares generated reviews against the reviewer's real comments on held-out PRs.
 
 Configuration lives in `.legit/config.yaml`. See `.claude/CLAUDE.md` for architecture details.
+
+## Private preview candidate
+
+The preview roster is `mitchellh`, `thockin`, `liggitt`, `lavalamp`, and `bgrant0607`.
+These are simulations based on bounded historical samples, not maintainer endorsements
+or verified current views. Review quality remains experimental.
+
+```bash
+uv sync --extra embeddings
+uv run legit readiness                 # offline artifact inventory; not a quality score
+uv run legit serve --host 127.0.0.1    # local preview
+bash scripts/check.sh                 # tests, lint, formatting, strict typing, package build
+```
+
+Web reviews accept public repositories only and never post to GitHub. Completed
+reviews and feedback are persisted in `.legit/preview/feedback.sqlite3`. Set
+`LEGIT_BASIC_AUTH` before any remote exposure; deployment is a separate release step.
+
+See [release tasks](openspec/changes/private-preview/tasks.md),
+[persona inspection](evidence/persona-inspection.md), and
+[live quality findings](evidence/quality-findings.md). The runtime archive includes
+all five persona/index sets and their sampled source data; it excludes credentials
+and feedback. `uv run scripts/package_preview.py` verifies its artifact hashes.
+
+Use `legit fetch --refresh` to rediscover full history without discarding downloaded
+content. `scripts/preview_corpus.py` is a separate bounded sampling tool; its manifest
+records the selected source PRs and never certifies full-history coverage.

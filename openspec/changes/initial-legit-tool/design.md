@@ -202,6 +202,7 @@ Since CLIs don't natively support JSON mode, we:
 ```python
 class CLIBackedProvider(CustomLLM):
     """litellm interface, CLI execution underneath."""
+
     cli_command: str  # e.g., "gemini", "claude", "codex"
     model: str | None  # optional model override
 

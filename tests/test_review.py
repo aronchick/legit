@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+from pydantic import ValidationError
+
 from legit.config import LegitConfig, ProfileConfig, ProfileSource, ReviewConfig
 from legit.models import InlineComment, ReviewOutput
 from legit.review import (
@@ -231,18 +234,21 @@ class TestSelfCritique:
                     would_reviewer_leave_this="yes",
                     phrasing_sounds_like_them="yes",
                     already_covered="no",
+                    technical_evidence="supported",
                 ),
                 CritiqueItem(
                     comment_index=1,
                     would_reviewer_leave_this="no",
                     phrasing_sounds_like_them="close",
                     already_covered="no",
+                    technical_evidence="supported",
                 ),
                 CritiqueItem(
                     comment_index=2,
                     would_reviewer_leave_this="probably",
                     phrasing_sounds_like_them="yes",
                     already_covered="yes",
+                    technical_evidence="supported",
                 ),
             ]
         )
@@ -272,6 +278,7 @@ class TestSelfCritique:
                     would_reviewer_leave_this="yes",
                     phrasing_sounds_like_them="yes",
                     already_covered="no",
+                    technical_evidence="supported",
                 ),
             ]
         )
@@ -301,6 +308,43 @@ class TestSelfCritique:
         config = LegitConfig()
         result = _run_self_critique(config, review, "", "")
         assert len(result.inline_comments) == 1
+
+    @patch("legit.review.run_inference")
+    def test_critique_receives_code_and_removed_findings_do_not_survive_in_summary(
+        self, mock_inference: MagicMock
+    ):
+        review = ReviewOutput(
+            summary="I've wanted this for years. This definitely leaks memory.",
+            inline_comments=[
+                InlineComment(
+                    file="a.py",
+                    comment="Memory leak",
+                    confidence=0.9,
+                    hunk_header="@@",
+                    diff_snippet="+allocate()",
+                )
+            ],
+        )
+        mock_inference.return_value = CritiqueOutput(
+            assessments=[
+                CritiqueItem(
+                    comment_index=0,
+                    would_reviewer_leave_this="no",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="no",
+                    technical_evidence="supported",
+                )
+            ]
+        )
+        config = LegitConfig()
+        critiqued = _run_self_critique(
+            config, review, "examples", "threads", code_context="try: allocate()\nfinally: free()"
+        )
+        assert "finally: free()" in mock_inference.call_args.kwargs["user_prompt"]
+        filtered = _apply_filters(critiqued, config)
+        assert filtered.inline_comments == []
+        assert filtered.summary == "No inline findings retained; this is not an approval."
+        assert "leak" not in _format_dry_run(filtered, "alice")
 
 
 # ---------------------------------------------------------------------------
@@ -382,7 +426,7 @@ class TestApplyFilters:
         result = _apply_filters(review, config)
         assert len(result.inline_comments) == 1
 
-    def test_preserves_summary_and_abstentions(self):
+    def test_summarizes_retained_findings_and_preserves_abstentions(self):
         review = ReviewOutput(
             summary="My summary",
             inline_comments=[
@@ -395,7 +439,7 @@ class TestApplyFilters:
         )
         config = LegitConfig()
         result = _apply_filters(review, config)
-        assert result.summary == "My summary"
+        assert result.summary == "1 comment to consider below."
         assert result.abstained_files == ["vendor/"]
         assert result.abstention_reason == "vendor code"
 
@@ -461,6 +505,7 @@ class TestGenerateReview:
                     would_reviewer_leave_this="yes",
                     phrasing_sounds_like_them="yes",
                     already_covered="no",
+                    technical_evidence="supported",
                 ),
             ]
         )
@@ -486,3 +531,100 @@ class TestGenerateReview:
         assert result.summary != ""
         mock_load_profile.assert_called_once_with("testuser")
         mock_gh.fetch_pr_for_review.assert_called_once()
+
+
+def test_critique_evidence_verdict_is_required():
+    with pytest.raises(ValidationError, match="technical_evidence"):
+        CritiqueItem.model_validate(
+            {
+                "comment_index": 0,
+                "would_reviewer_leave_this": "yes",
+                "phrasing_sounds_like_them": "yes",
+                "already_covered": "no",
+            }
+        )
+
+
+@pytest.mark.parametrize("verdict", ["unsupported", "uncertain"])
+def test_unsupported_caller_reassurance_dropped_despite_matching_voice(monkeypatch, verdict):
+    review = ReviewOutput(
+        summary="Fine in practice",
+        inline_comments=[
+            InlineComment(
+                file="utilization.go",
+                hunk_header="@@",
+                diff_snippet="+return ratio",
+                comment=(
+                    "This is fine in practice since the replica calculator caps the result anyway."
+                ),
+                confidence=0.99,
+            )
+        ],
+    )
+    assessment = CritiqueItem(
+        comment_index=0,
+        would_reviewer_leave_this="yes",
+        phrasing_sounds_like_them="yes",
+        already_covered="no",
+        technical_evidence=verdict,
+    )
+    monkeypatch.setattr(
+        "legit.review.run_inference", lambda **_: CritiqueOutput(assessments=[assessment])
+    )
+    result = _run_self_critique(
+        LegitConfig(), review, "voice examples", "", code_context="utilization.go: return ratio"
+    )
+    assert result.inline_comments == []
+    assert _apply_filters(result, LegitConfig()).summary == (
+        "No inline findings retained; this is not an approval."
+    )
+
+
+@pytest.mark.parametrize("response", ["invalid raw critique", CritiqueOutput(assessments=[])])
+def test_missing_structured_assessment_drops_unverified_comments(monkeypatch, response):
+    review = ReviewOutput(
+        summary="Review",
+        inline_comments=[
+            InlineComment(
+                file="a.go",
+                hunk_header="@@",
+                diff_snippet="+code",
+                comment="Claim",
+                confidence=0.9,
+            )
+        ],
+    )
+    monkeypatch.setattr("legit.review.run_inference", lambda **_: response)
+    result = _run_self_critique(LegitConfig(), review, "", "", code_context="+code")
+    assert result.inline_comments == []
+
+
+def test_grounded_question_can_pass_evidence_gate(monkeypatch):
+    review = ReviewOutput(
+        summary="Review",
+        inline_comments=[
+            InlineComment(
+                file="utilization.go",
+                hunk_header="@@",
+                diff_snippet="+return ratio",
+                comment="How does the caller handle this large ratio? Could we check it?",
+                confidence=0.8,
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        "legit.review.run_inference",
+        lambda **_: CritiqueOutput(
+            assessments=[
+                CritiqueItem(
+                    comment_index=0,
+                    would_reviewer_leave_this="yes",
+                    phrasing_sounds_like_them="yes",
+                    already_covered="no",
+                    technical_evidence="supported",
+                )
+            ]
+        ),
+    )
+    result = _run_self_critique(LegitConfig(), review, "", "", code_context="+return ratio")
+    assert result.inline_comments == review.inline_comments

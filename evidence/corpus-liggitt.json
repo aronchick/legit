@@ -1,0 +1,35 @@
+{
+  "profile": "liggitt",
+  "repo": "kubernetes/kubernetes",
+  "query": "repo:kubernetes/kubernetes commenter:liggitt type:pr -author:liggitt updated:<2026-04-01",
+  "scope": "bounded sample, not full history",
+  "before": "2026-04-01",
+  "search_total": 11490,
+  "sample_prs": [
+    134842,
+    137749,
+    137629,
+    134235,
+    93597,
+    93670,
+    94002,
+    96113,
+    96052,
+    94047,
+    94046,
+    94045,
+    92688,
+    81585,
+    82984,
+    81414,
+    82832,
+    73203,
+    67998,
+    63242
+  ],
+  "counts": {
+    "pr_comments": 56,
+    "issue_comments": 46
+  },
+  "fetched_at": "2026-09-09T17:50:26.277089+00:00"
+}

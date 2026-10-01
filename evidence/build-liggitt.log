@@ -1,0 +1,9 @@
+Temporal holdout: training only on activity before 2026-04-01
+
+Building profile: liggitt
+Phase 1/2: Map-Reduce — 4 parallel workers...
+  Profile generated.
+Phase 2/2: Building BM25 retrieval index...
+  Index saved to .legit/index/liggitt/bm25.json
+
+Profile 'liggitt' built successfully.

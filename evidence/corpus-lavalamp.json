@@ -1,0 +1,35 @@
+{
+  "profile": "lavalamp",
+  "repo": "kubernetes/kubernetes",
+  "query": "repo:kubernetes/kubernetes commenter:lavalamp type:pr -author:lavalamp updated:<2026-04-01",
+  "scope": "bounded sample, not full history",
+  "before": "2026-04-01",
+  "search_total": 4859,
+  "sample_prs": [
+    80471,
+    73845,
+    103539,
+    99495,
+    113369,
+    90018,
+    91260,
+    94397,
+    94364,
+    95145,
+    95562,
+    105026,
+    105095,
+    104874,
+    113730,
+    116121,
+    1080,
+    112328,
+    110646,
+    112063
+  ],
+  "counts": {
+    "pr_comments": 72,
+    "issue_comments": 42
+  },
+  "fetched_at": "2026-09-09T17:50:50.630989+00:00"
+}

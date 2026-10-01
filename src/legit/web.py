@@ -8,16 +8,19 @@ import logging
 import os
 import queue
 import random
+import re
 import threading
 import time
-import traceback
+from collections.abc import AsyncIterator
 from functools import partial
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, Form, Query, Request
+from fastapi import FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 
-from legit.config import LegitConfig, load_config
+from legit.config import LegitConfig, legit_path, load_config
+from legit.feedback import Feedback, record_feedback, save_review
 from legit.review import generate_review
 
 logger = logging.getLogger(__name__)
@@ -61,7 +64,7 @@ async def _basic_auth_middleware(request: Request, call_next):  # type: ignore[n
 # Sample PRs — real K8s PRs with substantial review discussion
 # ---------------------------------------------------------------------------
 
-SAMPLE_PRS: list[dict] = [
+SAMPLE_PRS: list[dict[str, Any]] = [
     # --- thockin ---
     {
         "number": 125488,
@@ -231,11 +234,11 @@ _REVIEWER_TO_PROFILE = {
 }
 
 
-def _render(context: dict) -> HTMLResponse:
+def _render(context: dict[str, Any]) -> HTMLResponse:
     """Render the template with Jinja2 directly (avoids Starlette cache issues)."""
     from jinja2 import Environment, FileSystemLoader
 
-    env = Environment(loader=FileSystemLoader(str(_TEMPLATE_PATH.parent)))
+    env = Environment(loader=FileSystemLoader(str(_TEMPLATE_PATH.parent)), autoescape=True)
     template = env.get_template("index.html")
     return HTMLResponse(template.render(**context))
 
@@ -244,10 +247,39 @@ def _load_cfg() -> LegitConfig:
     return load_config()
 
 
-def _sample_prs_for_template() -> list[dict]:
+def _available_profiles(cfg: LegitConfig) -> list[str]:
+    return [
+        p.name
+        for p in cfg.profiles
+        if re.fullmatch(r"[A-Za-z0-9_-]+", p.name)
+        and (legit_path() / "profiles" / f"{p.name}.md").is_file()
+        and (legit_path() / "profiles" / f"{p.name}.md").read_text().strip()
+    ]
+
+
+def _validate_review(cfg: LegitConfig, pr_url: str, profile_name: str) -> None:
+    if profile_name not in _available_profiles(cfg):
+        raise HTTPException(400, "This persona is not available yet.")
+    if not re.fullmatch(
+        r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]*", pr_url
+    ):
+        raise HTTPException(400, "Enter a valid GitHub pull request URL.")
+
+
+@app.post("/feedback")
+async def feedback(payload: Feedback) -> dict[str, bool]:
+    if not record_feedback(payload):
+        raise HTTPException(404, "Review not found.")
+    return {"saved": True}
+
+
+def _sample_prs_for_template() -> list[dict[str, Any]]:
     """Return the sample PR list enriched with URLs for the template."""
     enriched = []
+    available = _available_profiles(_load_cfg())
     for pr in SAMPLE_PRS:
+        if pr["reviewer"] not in available:
+            continue
         enriched.append(
             {
                 **pr,
@@ -261,15 +293,13 @@ def _sample_prs_for_template() -> list[dict]:
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
     cfg = _load_cfg()
-    profiles = [p.name for p in cfg.profiles]
-    # Pick 6 random samples to show on the landing page
-    samples = random.sample(SAMPLE_PRS, min(6, len(SAMPLE_PRS)))
-    for s in samples:
-        s["pr_url"] = f"https://github.com/{s['repo']}/pull/{s['number']}"
-        s["profile_name"] = _REVIEWER_TO_PROFILE.get(s["reviewer"], s["reviewer"])
+    profiles = _available_profiles(cfg)
+    all_samples = _sample_prs_for_template()
+    samples = random.sample(all_samples, min(6, len(all_samples)))
     return _render(
         {
             "profiles": profiles,
+            "unavailable_profiles": [p.name for p in cfg.profiles if p.name not in profiles],
             "review": None,
             "error": None,
             "pr_url": "",
@@ -299,7 +329,9 @@ async def review(
 async def _do_review(pr_url: str, profile_name: str) -> HTMLResponse:
     """Shared review logic for both GET and POST endpoints."""
     cfg = _load_cfg()
-    profiles = [p.name for p in cfg.profiles]
+    profiles = _available_profiles(cfg)
+
+    _validate_review(cfg, pr_url, profile_name)
 
     # Set GITHUB_TOKEN if not in env — try gh auth token
     if not os.environ.get(cfg.github.token_env):
@@ -327,6 +359,7 @@ async def _do_review(pr_url: str, profile_name: str) -> HTMLResponse:
                 profile_name=profile_name,
                 pr_url=pr_url,
                 dry_run=True,
+                require_public=True,
             ),
         )
 
@@ -347,9 +380,11 @@ async def _do_review(pr_url: str, profile_name: str) -> HTMLResponse:
             "abstention_reason": result.abstention_reason,
         }
 
+        review_data["review_id"] = save_review(profile_name, pr_url, review_data)
         return _render(
             {
                 "profiles": profiles,
+                "unavailable_profiles": [p.name for p in cfg.profiles if p.name not in profiles],
                 "review": review_data,
                 "error": None,
                 "pr_url": pr_url,
@@ -359,13 +394,14 @@ async def _do_review(pr_url: str, profile_name: str) -> HTMLResponse:
                 "all_sample_prs": _sample_prs_for_template(),
             }
         )
-    except Exception as exc:
-        tb = traceback.format_exc()
+    except Exception:
+        logger.exception("Review generation failed")
         return _render(
             {
                 "profiles": profiles,
+                "unavailable_profiles": [p.name for p in cfg.profiles if p.name not in profiles],
                 "review": None,
-                "error": f"{exc}\n\n{tb}",
+                "error": "Unable to generate this review. Please try again later.",
                 "pr_url": pr_url,
                 "profile_name": profile_name,
                 "sample_prs": [],
@@ -398,7 +434,7 @@ def _run_review_with_progress(
     cfg: LegitConfig,
     profile_name: str,
     pr_url: str,
-    progress_q: queue.Queue,
+    progress_q: queue.Queue[dict[str, Any]],
 ) -> None:
     """Run the review pipeline, posting progress events to *progress_q*.
 
@@ -452,7 +488,7 @@ def _run_review_with_progress(
         )
         t0 = time.time()
         with GitHubClient(cfg.github) as gh:
-            pr_data = gh.fetch_pr_for_review(pr_url)
+            pr_data = gh.fetch_pr_for_review(pr_url, require_public=True)
             pr_title = pr_data["metadata"].get("title", "(untitled)")
             file_count = len(pr_data.get("files", []))
             diff_kb = len(pr_data.get("diff", "")) // 1024
@@ -480,7 +516,7 @@ def _run_review_with_progress(
                 {
                     "step": "context",
                     "status": "done",
-                    "detail": f"Fetched {len(context_files)} files ({ctx_kb}KB) for codebase awareness",
+                    "detail": f"Fetched {len(context_files)} files ({ctx_kb}KB) for context",
                     "elapsed": round(time.time() - t0, 1),
                 }
             )
@@ -575,7 +611,7 @@ def _run_review_with_progress(
             {
                 "step": "generate",
                 "status": "done",
-                "detail": f"Generated {len(review.inline_comments)} comments, {len(review.abstained_files)} abstentions",
+                "detail": f"Generated {len(review.inline_comments)} comments",
                 "elapsed": round(time.time() - t0, 1),
             }
         )
@@ -586,7 +622,7 @@ def _run_review_with_progress(
                 {
                     "step": "critique",
                     "status": "running",
-                    "detail": f"Self-critique: filtering {len(review.inline_comments)} comments for authenticity...",
+                    "detail": f"Checking {len(review.inline_comments)} comments...",
                 }
             )
             t0 = time.time()
@@ -594,7 +630,9 @@ def _run_review_with_progress(
                 pr_data.get("comments", []),
                 pr_data.get("reviews", []),
             )
-            review = _run_self_critique(cfg, review, examples_text, existing_threads)
+            review = _run_self_critique(
+                cfg, review, examples_text, existing_threads, code_context=user_prompt
+            )
             progress_q.put(
                 {
                     "step": "critique",
@@ -608,7 +646,7 @@ def _run_review_with_progress(
                 {
                     "step": "critique",
                     "status": "done",
-                    "detail": "No comments to critique — reviewer would approve as-is",
+                    "detail": "No comments generated. The PR may still have issues.",
                     "elapsed": 0,
                 }
             )
@@ -622,7 +660,7 @@ def _run_review_with_progress(
             {
                 "step": "filter",
                 "status": "done",
-                "detail": f"{len(review.inline_comments)} final comments (threshold: {cfg.review.abstention_threshold})",
+                "detail": f"{len(review.inline_comments)} final comments",
                 "elapsed": 0,
             }
         )
@@ -644,13 +682,20 @@ def _run_review_with_progress(
             "abstained_files": review.abstained_files,
             "abstention_reason": review.abstention_reason,
         }
+        review_data["review_id"] = save_review(profile_name, pr_url, review_data)
         progress_q.put(
             {"step": "done", "status": "done", "detail": "Review complete", "review": review_data}
         )
 
-    except Exception as exc:
-        tb = traceback.format_exc()
-        progress_q.put({"step": "error", "status": "error", "detail": str(exc), "traceback": tb})
+    except Exception:
+        logger.exception("Streaming review generation failed")
+        progress_q.put(
+            {
+                "step": "error",
+                "status": "error",
+                "detail": "Unable to generate this review. Please try again later.",
+            }
+        )
 
 
 @app.get("/review/stream")
@@ -660,9 +705,10 @@ async def review_stream(
 ) -> StreamingResponse:
     """SSE endpoint that streams real progress events during review generation."""
     cfg = _load_cfg()
+    _validate_review(cfg, pr_url, profile_name)
     _ensure_github_token(cfg)
 
-    progress_q: queue.Queue = queue.Queue()
+    progress_q: queue.Queue[dict[str, Any]] = queue.Queue()
 
     # Run the pipeline in a background thread
     thread = threading.Thread(
@@ -672,7 +718,7 @@ async def review_stream(
     )
     thread.start()
 
-    async def event_stream():
+    async def event_stream() -> AsyncIterator[str]:
         while True:
             try:
                 # Check for events without blocking the event loop

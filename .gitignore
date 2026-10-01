@@ -1,4 +1,13 @@
 __pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+.codex-work/
+.gstack/
+.legit/*.sqlite*
+.legit/preview/
 *.pyc
 .legit/data/
 .legit/cache/

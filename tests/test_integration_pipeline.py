@@ -97,7 +97,9 @@ def alice_retrieval_docs() -> list[RetrievalDocument]:
     """Realistic retrieval documents for alice-reviewer."""
     return [
         RetrievalDocument(
-            comment_text="Can we add a test for the empty-input case? This seems like it could panic.",
+            comment_text=(
+                "Can we add a test for the empty-input case? This seems like it could panic."
+            ),
             file_path="pkg/handler/auth.go",
             code_context="func HandleAuth(ctx context.Context, req *Request) (*Response, error) {",
             comment_type="pr_review",
@@ -117,7 +119,10 @@ def alice_retrieval_docs() -> list[RetrievalDocument]:
             pr_number=100,
         ),
         RetrievalDocument(
-            comment_text="What happens if ctx is already cancelled at this point? We should check ctx.Err() first.",
+            comment_text=(
+                "What happens if ctx is already cancelled at this point? "
+                "We should check ctx.Err() first."
+            ),
             file_path="pkg/middleware/timeout.go",
             code_context="select {\ncase <-ctx.Done():",
             comment_type="pr_review",
@@ -127,7 +132,9 @@ def alice_retrieval_docs() -> list[RetrievalDocument]:
             pr_number=150,
         ),
         RetrievalDocument(
-            comment_text="This error message isn't helpful for debugging. Can we include the request ID?",
+            comment_text=(
+                "This error message isn't helpful for debugging. Can we include the request ID?"
+            ),
             file_path="pkg/api/errors.go",
             code_context='return fmt.Errorf("request failed")',
             comment_type="pr_review",
@@ -373,15 +380,23 @@ class TestFullPipeline:
                     hunk_header="@@ -0,0 +1,45 @@",
                     diff_snippet="+        // TODO: validate fields",
                     side="addition",
-                    comment="This TODO should be resolved before merging — the validation is the whole point of the PR.",
+                    comment=(
+                        "This TODO should be resolved before merging — "
+                        "the validation is the whole point of the PR."
+                    ),
                     confidence=0.95,
                 ),
                 InlineComment(
                     file="pkg/middleware/validate.go",
                     hunk_header="@@ -0,0 +1,45 @@",
-                    diff_snippet='+            http.Error(w, "invalid JSON", http.StatusBadRequest)',
+                    diff_snippet=(
+                        '+            http.Error(w, "invalid JSON", http.StatusBadRequest)'
+                    ),
                     side="addition",
-                    comment="Can we include the parse error in the response? It helps callers fix their payloads.",
+                    comment=(
+                        "Can we include the parse error in the response? "
+                        "It helps callers fix their payloads."
+                    ),
                     confidence=0.80,
                 ),
                 InlineComment(
@@ -404,18 +419,21 @@ class TestFullPipeline:
                     would_reviewer_leave_this="yes",
                     phrasing_sounds_like_them="yes",
                     already_covered="no",
+                    technical_evidence="supported",
                 ),
                 CritiqueItem(
                     comment_index=1,
                     would_reviewer_leave_this="yes",
                     phrasing_sounds_like_them="yes",
                     already_covered="no",
+                    technical_evidence="supported",
                 ),
                 CritiqueItem(
                     comment_index=2,
                     would_reviewer_leave_this="yes",
                     phrasing_sounds_like_them="close",
                     already_covered="no",
+                    technical_evidence="supported",
                 ),
             ]
         )
@@ -431,15 +449,14 @@ class TestFullPipeline:
 
         # Verify the full pipeline output
         assert isinstance(result, ReviewOutput)
-        assert (
-            "validation middleware" in result.summary.lower()
-            or "good addition" in result.summary.lower()
-        )
+        assert result.summary == "3 comments to consider below."
         assert len(result.inline_comments) == 3  # all passed critique + above 0.4 threshold
         assert result.inline_comments[0].confidence == 0.95
 
         # Verify LLM was called twice (review + critique)
         assert mock_inference.call_count == 2
+        critique_prompt = mock_inference.call_args_list[1].kwargs["user_prompt"]
+        assert SAMPLE_PR["diff"] in critique_prompt
 
         # Verify GitHub client was used
         mock_gh.fetch_pr_for_review.assert_called_once()
@@ -481,6 +498,7 @@ class TestFullPipeline:
                     would_reviewer_leave_this="yes",
                     phrasing_sounds_like_them="yes",
                     already_covered="no",
+                    technical_evidence="supported",
                 ),
             ]
         )
@@ -498,9 +516,11 @@ class TestFullPipeline:
         )
 
         assert output_file.exists()
+        assert result.summary == "1 comment to consider below."
         content = output_file.read_text()
         assert "Review by alice-reviewer" in content
-        assert "LGTM" in content
+        assert "1 comment to consider below." in content
+        assert "LGTM" not in content
         assert "content-type check" in content
 
     @patch("legit.review.run_inference")
@@ -546,18 +566,21 @@ class TestFullPipeline:
                     would_reviewer_leave_this="yes",
                     phrasing_sounds_like_them="yes",
                     already_covered="no",
+                    technical_evidence="supported",
                 ),
                 CritiqueItem(
                     comment_index=1,
                     would_reviewer_leave_this="yes",
                     phrasing_sounds_like_them="yes",
                     already_covered="no",
+                    technical_evidence="supported",
                 ),
                 CritiqueItem(
                     comment_index=2,
                     would_reviewer_leave_this="yes",
                     phrasing_sounds_like_them="yes",
                     already_covered="no",
+                    technical_evidence="supported",
                 ),
             ]
         )
@@ -616,6 +639,7 @@ class TestFullPipeline:
                 would_reviewer_leave_this="yes",
                 phrasing_sounds_like_them="yes",
                 already_covered="no",
+                technical_evidence="supported",
             )
             for i in range(15)
         ]
@@ -685,7 +709,7 @@ class TestPipelineEdgeCases:
             dry_run=True,
         )
 
-        assert result.summary == "LGTM — just a docs change."
+        assert result.summary == "No inline findings retained; this is not an approval."
         assert len(result.inline_comments) == 0
 
     @patch("legit.review.run_inference")
@@ -697,7 +721,7 @@ class TestPipelineEdgeCases:
         integration_env: Path,
         alice_retrieval_docs: list[RetrievalDocument],
     ):
-        """When the LLM returns raw text instead of structured output, pipeline should gracefully fallback."""
+        """Raw model text cannot bypass structured findings or imply approval."""
         build_index("alice-reviewer", alice_retrieval_docs)
 
         mock_gh = MagicMock()
@@ -718,5 +742,5 @@ class TestPipelineEdgeCases:
         )
 
         assert isinstance(result, ReviewOutput)
-        assert "fine to me" in result.summary or "no major issues" in result.summary
+        assert result.summary == "No inline findings retained; this is not an approval."
         assert len(result.inline_comments) == 0

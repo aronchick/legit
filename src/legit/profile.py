@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
+from uuid import uuid4
 
 from legit.config import LegitConfig, ProfileConfig, legit_path
 from legit.model_runner import run_inference
@@ -28,28 +32,56 @@ def _data_dirs_for_profile(profile: ProfileConfig) -> list[Path]:
     return dirs
 
 
-def _filter_items_before(items: list[dict], before: str | None) -> list[dict]:
-    """Drop items created on/after *before* (YYYY-MM-DD) for temporal holdout.
+def _filter_items_before(items: list[dict[str, Any]], before: str | None) -> list[dict[str, Any]]:
+    """Keep dated evidence predating the cutoff, excluding subsequent edits.
 
-    ISO-8601 timestamps compare correctly as strings. Items without a
-    created_at are kept — they only occur in old data.
+    Current authored-PR diffs have no historical snapshot provenance. Mutable
+    GitHub comment/issue files must carry their API update timestamp as well.
+    Missing/invalid timestamps fail closed only when a cutoff is requested.
     """
     if not before:
         return items
+
+    def timestamp(value: Any) -> datetime | None:
+        if not isinstance(value, str) or not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+
+    cutoff = timestamp(before)
+    if cutoff is None:
+        raise ValueError("Invalid temporal holdout cutoff")
     kept = []
     for item in items:
-        created = (
+        source_file = item.get("_source_file")
+        if source_file == "authored_prs.json":
+            continue
+        commit = item.get("commit") or {}
+        created = timestamp(
             item.get("created_at")
             or item.get("submitted_at")
-            or (item.get("commit", {}).get("author") or {}).get("date")
+            or (commit.get("author") or {}).get("date")
         )
-        if created and str(created) >= before:
+        if created is None or created >= cutoff:
+            continue
+        mutable = source_file in {"pr_comments.json", "issue_comments.json", "issues.json"}
+        if mutable and not item.get("updated_at"):
+            continue
+        observed_dates = [item[key] for key in ("updated_at", "submitted_at") if key in item]
+        committer = commit.get("committer") or {}
+        if "date" in committer:
+            observed_dates.append(committer["date"])
+        parsed_dates = [timestamp(value) for value in observed_dates]
+        if any(value is None or value >= cutoff for value in parsed_dates):
             continue
         kept.append(item)
     return kept
 
 
-def _load_all_items(profile: ProfileConfig) -> list[dict]:
+def _load_all_items(profile: ProfileConfig) -> list[dict[str, Any]]:
     """Load every JSON file from the profile's data directories.
 
     Each file is expected to contain a JSON array of comment/review objects.
@@ -57,7 +89,7 @@ def _load_all_items(profile: ProfileConfig) -> list[dict]:
     converts them into items suitable for the map phase.
     Returns a flat list of all items sorted chronologically by created_at.
     """
-    items: list[dict] = []
+    items: list[dict[str, Any]] = []
     for data_dir in _data_dirs_for_profile(profile):
         if not data_dir.is_dir():
             logger.warning("Data directory not found: %s", data_dir)
@@ -82,7 +114,8 @@ def _load_all_items(profile: ProfileConfig) -> list[dict]:
                     item = {
                         "_source_file": "authored_prs.json",
                         "body": (
-                            f"[AUTHORED CODE] PR #{pr.get('number', '?')}: {pr.get('title', '')}\n\n"
+                            f"[AUTHORED CODE] PR #{pr.get('number', '?')}: "
+                            f"{pr.get('title', '')}\n\n"
                             f"Files changed: {', '.join(pr.get('files', []))}\n\n"
                             f"Diff:\n{pr.get('diff', '')[:20_000]}"
                         ),
@@ -102,7 +135,7 @@ def _load_all_items(profile: ProfileConfig) -> list[dict]:
                 items.append(raw)
 
     # Sort chronologically — fall back to epoch for items without created_at
-    def _sort_key(item: dict) -> str:
+    def _sort_key(item: dict[str, Any]) -> str:
         return (
             item.get("created_at")
             or item.get("submitted_at")
@@ -119,14 +152,14 @@ def _load_all_items(profile: ProfileConfig) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _chunk_items(items: list[dict], chunk_size: int = 150) -> list[list[dict]]:
+def _chunk_items(items: list[dict[str, Any]], chunk_size: int = 150) -> list[list[dict[str, Any]]]:
     """Split a sorted list of items into chunks of chunk_size."""
     if not items:
         return []
     return [items[i : i + chunk_size] for i in range(0, len(items), chunk_size)]
 
 
-def _date_range(chunk: list[dict]) -> tuple[str, str]:
+def _date_range(chunk: list[dict[str, Any]]) -> tuple[str, str]:
     """Return (earliest, latest) ISO date strings from a chunk."""
     dates: list[str] = []
     for item in chunk:
@@ -177,7 +210,9 @@ Respond with valid JSON only.\
 """
 
 
-def _build_map_prompt(chunk: list[dict], chunk_index: int, date_start: str, date_end: str) -> str:
+def _build_map_prompt(
+    chunk: list[dict[str, Any]], chunk_index: int, date_start: str, date_end: str
+) -> str:
     """Build the user prompt for mapping a single chunk."""
     # Serialize items — keep the most useful fields, drop noise
     serialized: list[str] = []
@@ -220,7 +255,7 @@ Analyze the following reviewer comments and extract behavioral patterns:
 
 def _run_map(
     config: LegitConfig,
-    chunk: list[dict],
+    chunk: list[dict[str, Any]],
     chunk_index: int,
 ) -> ChunkObservation:
     """Run the map phase for a single chunk, returning structured observations."""
@@ -246,7 +281,7 @@ def _run_map(
     return ChunkObservation(
         date_range_start=date_start,
         date_range_end=date_end,
-        observations=[{"situation": "raw_output", "details": [result]}],
+        observations=[{"situation": "raw_output", "details": [str(result)]}],
         raw_text=result if isinstance(result, str) else str(result),
     )
 
@@ -399,6 +434,91 @@ def _clear_cache(profile_name: str) -> None:
         logger.info("Cleared chunk cache for profile '%s'", profile_name)
 
 
+def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _prepare_map_cache(
+    config: LegitConfig,
+    profile: ProfileConfig,
+    items: list[dict[str, Any]],
+    before: str | None,
+    rebuild: bool,
+) -> None:
+    """Reuse maps only for the same corpus, boundary, chunking and model configuration."""
+    payload = {
+        "version": 1,
+        "items": items,
+        "holdout_after": before,
+        "profile": profile.model_dump(mode="json"),
+        "model": config.model.model_dump(mode="json"),
+    }
+    fingerprint = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode()
+    ).hexdigest()
+    path = _cache_dir(profile.name) / "fingerprint.json"
+    try:
+        previous = json.loads(path.read_text()).get("fingerprint")
+    except (OSError, ValueError, AttributeError):
+        previous = None
+    if rebuild or previous != fingerprint:
+        _clear_cache(profile.name)
+    _atomic_json(path, {"fingerprint": fingerprint})
+
+
+def _build_artifact_hashes(profile_name: str) -> dict[str, str]:
+    root = legit_path()
+    required = [
+        root / "profiles" / f"{profile_name}.md",
+        root / "index" / profile_name / "bm25.json",
+        root / "expertise" / profile_name / "expertise.json",
+    ]
+    semantic = [
+        root / "embeddings" / profile_name / name
+        for name in ("vectors.npz", "metadata.json", "model_info.json")
+    ]
+    if any(path.exists() for path in semantic):
+        required.extend(semantic)
+    hashes = {}
+    for path in required:
+        if not path.is_file():
+            raise ValueError(f"Build artifact missing: {path}")
+        hashes[str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashes
+
+
+def save_build_provenance(profile_name: str, holdout_after: str | None) -> None:
+    """Call only after a successful profile AND BM25 build to attest to matching artifacts."""
+    _atomic_json(
+        _profile_meta_path(profile_name),
+        {
+            "holdout_after": holdout_after,
+            "provenance_version": 1,
+            "artifact_hashes": _build_artifact_hashes(profile_name),
+        },
+    )
+
+
+def verify_build_provenance(profile_name: str) -> None:
+    """Reject legacy, incomplete or changed training artifacts before evaluation."""
+    try:
+        meta = json.loads(_profile_meta_path(profile_name).read_text())
+    except (OSError, ValueError) as exc:
+        raise ValueError("Missing build provenance; rebuild this profile") from exc
+    if not isinstance(meta, dict) or meta.get("provenance_version") != 1:
+        raise ValueError("Legacy build lacks artifact provenance; rebuild this profile")
+    if not meta.get("holdout_after") or meta.get("artifact_hashes") != _build_artifact_hashes(
+        profile_name
+    ):
+        raise ValueError("Training artifacts or cutoff are unverified; rebuild this profile")
+
+
 # ---------------------------------------------------------------------------
 # Profile output
 # ---------------------------------------------------------------------------
@@ -441,7 +561,7 @@ def load_profile_holdout(profile_name: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def _infer_comment_type(item: dict) -> str:
+def _infer_comment_type(item: dict[str, Any]) -> str:
     """Infer the comment type from an item's source file or structure."""
     source = item.get("_source_file", "")
     if "pr_comment" in source:
@@ -462,9 +582,9 @@ def _infer_comment_type(item: dict) -> str:
     return "pr_review"
 
 
-def _extract_timestamp(item: dict) -> str:
+def _extract_timestamp(item: dict[str, Any]) -> str:
     """Extract the best timestamp from an item."""
-    return (
+    return str(
         item.get("created_at")
         or item.get("submitted_at")
         or item.get("commit", {}).get("author", {}).get("date", "")
@@ -472,19 +592,19 @@ def _extract_timestamp(item: dict) -> str:
     )
 
 
-def _extract_username(item: dict) -> str:
+def _extract_username(item: dict[str, Any]) -> str:
     """Extract the reviewer's username from an item."""
     user = item.get("user")
     if isinstance(user, dict):
-        return user.get("login", "")
+        return str(user.get("login", ""))
     # Commit author
     author = item.get("commit", {}).get("author", {})
     if isinstance(author, dict):
-        return author.get("name", "")
+        return str(author.get("name", ""))
     return ""
 
 
-def _extract_pr_number(item: dict) -> int | None:
+def _extract_pr_number(item: dict[str, Any]) -> int | None:
     """Try to extract a PR number from the item."""
     # Direct field
     pr_num = item.get("pull_request_number")
@@ -625,15 +745,15 @@ def build_profile(
         chunks = chunks[:max_chunks]
     logger.info("Processing %d chunks of up to %d items", len(chunks), profile.chunk_size)
 
+    # Invalidate prior attestation before changing any generated build artifact.
+    _profile_meta_path(profile_name).unlink(missing_ok=True)
     # 3. Map phase — with caching and parallel processing
-    if rebuild_map:
-        logger.info("--rebuild-map: clearing chunk cache")
-        _clear_cache(profile_name)
+    _prepare_map_cache(config, profile, items, before, rebuild_map)
 
     observations: list[ChunkObservation | None] = [None] * len(chunks)
 
     # First pass: load cached results
-    pending: list[tuple[int, list[dict]]] = []
+    pending: list[tuple[int, list[dict[str, Any]]]] = []
     for i, chunk in enumerate(chunks):
         cached = None if rebuild_map else _load_cached_chunk(profile_name, i)
         if cached is not None:
@@ -651,7 +771,9 @@ def build_profile(
             len(chunks) - len(pending),
         )
 
-        def _process_chunk(idx_chunk: tuple[int, list[dict]]) -> tuple[int, ChunkObservation]:
+        def _process_chunk(
+            idx_chunk: tuple[int, list[dict[str, Any]]],
+        ) -> tuple[int, ChunkObservation]:
             idx, chunk = idx_chunk
             logger.info("Chunk %d/%d: sending to LLM (%d items)…", idx + 1, len(chunks), len(chunk))
             obs = _run_map(config, chunk, idx)
@@ -669,9 +791,9 @@ def build_profile(
 
     # Type-narrow: all slots should be filled now
     final_observations: list[ChunkObservation] = []
-    for obs in observations:
-        assert obs is not None, "Bug: missing chunk observation after map phase"
-        final_observations.append(obs)
+    for observation in observations:
+        assert observation is not None, "Bug: missing chunk observation after map phase"
+        final_observations.append(observation)
 
     # 4. Reduce phase
     logger.info(
@@ -719,6 +841,9 @@ def build_profile(
             emb_path,
         )
     else:
+        # A previously built semantic index must not outlive its training boundary.
+        for filename in ("vectors.npz", "metadata.json", "model_info.json"):
+            (legit_path() / "embeddings" / profile_name / filename).unlink(missing_ok=True)
         logger.info("Skipping embeddings (onnxruntime not installed — use BM25 fallback)")
 
     return output_path

@@ -1,0 +1,35 @@
+{
+  "profile": "bgrant0607",
+  "repo": "kubernetes/kubernetes",
+  "query": "repo:kubernetes/kubernetes commenter:bgrant0607 type:pr -author:bgrant0607 updated:<2026-04-01",
+  "scope": "bounded sample, not full history",
+  "before": "2026-04-01",
+  "search_total": 2860,
+  "sample_prs": [
+    57,
+    67255,
+    2224,
+    19108,
+    61424,
+    15263,
+    46662,
+    34259,
+    19946,
+    17393,
+    73787,
+    11400,
+    15004,
+    14522,
+    7821,
+    9966,
+    557,
+    592,
+    41818,
+    93665
+  ],
+  "counts": {
+    "pr_comments": 12,
+    "issue_comments": 43
+  },
+  "fetched_at": "2026-09-09T17:51:17.548009+00:00"
+}

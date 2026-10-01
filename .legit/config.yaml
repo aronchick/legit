@@ -6,6 +6,14 @@ github:
   token_env: GITHUB_TOKEN
 
 profiles:
+  - name: mitchellh
+    sources:
+      - type: primary
+        repo: ghostty-org/ghostty
+        username: mitchellh
+    chunk_size: 60
+    map_concurrency: 4
+
   - name: wdbaruni
     sources:
       - type: primary

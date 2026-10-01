@@ -1,0 +1,40 @@
+{
+  "review_id": "081bc80f-02e9-4bf3-b623-2e3256a8340f",
+  "persona": "liggitt",
+  "pr_url": "https://github.com/kubernetes/kubernetes/pull/141978",
+  "output": {
+    "summary": "3 comments to consider below.",
+    "inline_comments": [
+      {
+        "file": "pkg/controller/podautoscaler/metrics/utilization.go",
+        "hunk_header": "@@ -35,20 +39,34 @@ func GetResourceUtilizationRatio(metrics PodMetricsInfo, requests map[string]int",
+        "diff_snippet": "\tcase percentage.Cmp(big.NewInt(math.MinInt32)) < 0:\n\t\tcurrentUtilization = math.MinInt32",
+        "comment": "can `metric.Value` or a request actually be negative by the time we get here? if not, this branch is unreachable and the comment above should say the percentage is non-negative so the clamp is one-sided... if it can, none of the four new table rows exercise it, so add a row that drives the percentage below `math.MinInt32` (e.g. a single pod with `Value: -(1 << 40)` and request 1) so the lower rail is actually demonstrated rather than assumed",
+        "confidence": 0.85,
+        "side": "addition"
+      },
+      {
+        "file": "pkg/controller/podautoscaler/metrics/utilization.go",
+        "hunk_header": "@@ -35,20 +39,34 @@ func GetResourceUtilizationRatio(metrics PodMetricsInfo, requests map[string]int",
+        "diff_snippet": "\treturn float64(currentUtilization) / float64(targetUtilization), currentUtilization, rawAverageValue, nil",
+        "comment": "the ratio is now computed from the *clamped* int32, not the exact percentage... with target 50 and an exact percentage of 2^40, the ratio returned is ~4.3e7 instead of ~2.2e10. that is almost certainly fine in practice since the replica calculator caps the result anyway, but it means `utilizationRatio` and `currentUtilization` are consistent with each other while both being wrong relative to the real inputs. if that is the intended behavior (and I think it is, given the release note), say so in the comment above the switch so the next person doesn't \"fix\" it by computing the ratio from `percentage` directly and desynchronizing the two",
+        "confidence": 0.7,
+        "side": "addition"
+      },
+      {
+        "file": "pkg/controller/podautoscaler/metrics/utilization.go",
+        "hunk_header": "@@ -35,20 +39,34 @@ func GetResourceUtilizationRatio(metrics PodMetricsInfo, requests map[string]int",
+        "diff_snippet": "\trawAverageValue = metricsTotal.Quo(metricsTotal, big.NewInt(numEntries)).Int64()",
+        "comment": "nit: this mutates `metricsTotal` in place, which is fine only because nothing reads it after this line... `new(big.Int).Quo(metricsTotal, big.NewInt(numEntries)).Int64()` makes that not depend on statement ordering. no need to change unless you're touching this for other reasons",
+        "confidence": 0.55,
+        "side": "addition"
+      }
+    ],
+    "abstained_files": [],
+    "abstention_reason": ""
+  },
+  "handler_status": 200,
+  "synthetic_feedback_readback": true,
+  "synthetic_feedback_removed": true,
+  "human_quality_verified": false
+}

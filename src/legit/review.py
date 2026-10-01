@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from rich.console import Console
@@ -47,13 +48,13 @@ def load_profile(profile_name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _parse_diff_hunks(diff_text: str) -> list[dict]:
+def _parse_diff_hunks(diff_text: str) -> list[dict[str, Any]]:
     """Split a unified diff into per-file hunks for retrieval queries.
 
     Returns a list of dicts with ``file_path`` and ``content`` keys,
     suitable for :func:`construct_queries`.
     """
-    hunks: list[dict] = []
+    hunks: list[dict[str, Any]] = []
     current_file: str | None = None
     current_lines: list[str] = []
 
@@ -78,7 +79,7 @@ def _parse_diff_hunks(diff_text: str) -> list[dict]:
     return hunks
 
 
-def _format_existing_threads(comments: list[dict], reviews: list[dict]) -> str:
+def _format_existing_threads(comments: list[dict[str, Any]], reviews: list[dict[str, Any]]) -> str:
     """Summarise existing review threads so the LLM avoids duplication."""
     parts: list[str] = []
 
@@ -106,9 +107,9 @@ def _format_existing_threads(comments: list[dict], reviews: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 _SYSTEM_TEMPLATE = """\
-You are impersonating {profile_name}, a code reviewer. Your goal is to write \
-a pull request review that feels EXACTLY like what {profile_name} would write — \
-not just the same priorities, but the same VOICE, TONE, and REASONING STYLE.
+You are generating a simulated code review informed by {profile_name}'s public \
+review examples. Use the observed priorities, voice, tone, and reasoning style. \
+You are not this person and do not speak on their behalf.
 
 ## Reviewer Profile
 {profile_document}
@@ -120,6 +121,11 @@ Study these carefully — they are the ground truth for how this person communic
 {examples}
 
 ## Critical Voice Rules
+- Never invent or claim the person's firsthand experiences, past statements, \
+authorship, private intentions, plans, promises, release authority, or approval. \
+Do not write "I've wanted", "I've been saying", "I wrote", or similar personal \
+history as if it were yours. Cite historical examples as attributed evidence \
+when relevant; do not turn them into current claims by that person.
 - MATCH THE REVIEWER'S REASONING STYLE. If they ask questions ("Do we really \
 need this?", "What happens if...?", "Could we...?"), YOU ask questions. If they \
 make declarative statements, you make declarative statements. Do NOT default to \
@@ -130,11 +136,11 @@ the length and detail level from the examples.
 - NEVER rubber-stamp. If you see real issues that this reviewer would flag, flag \
 them even if the PR looks mostly good. A reviewer who pushes back would not write \
 "/approve /lgtm" — they would ask for changes.
-- Focus on what THIS REVIEWER would focus on, not what a generic reviewer would \
-say. If the examples show they care about API semantics but never comment on test \
-structure, you should comment on API semantics and skip test structure.
-- Do NOT leave technically-correct-but-irrelevant comments. A comment the reviewer \
-would never make is worse than no comment at all.
+- Use observed preferences to prioritize relevant findings. Missing examples of \
+a topic are not evidence that the reviewer would ignore it. Do not suppress a \
+concrete correctness, security, or testing issue solely because it is absent \
+from the sample. Ground every finding in the supplied code and context.
+- Avoid irrelevant comments and unsupported assumptions about the reviewer.
 - The diff_snippet in each inline comment should be a short extract (1-5 lines) \
 from the diff that anchors the comment.
 
@@ -190,7 +196,7 @@ def _format_codebase_context(context_files: dict[str, str], max_total_chars: int
     if not context_files:
         return ""
 
-    parts: list[str] = ["\n## Codebase Context (full source files from base branch)\n"]
+    parts: list[str] = ["\n## Codebase Context (source files from the supplied revision)\n"]
     remaining = max_total_chars
     # Sort by size ascending — include smaller files first (more files > fewer complete files)
     sorted_files = sorted(context_files.items(), key=lambda kv: len(kv[1]))
@@ -233,7 +239,7 @@ def _format_codebase_context(context_files: dict[str, str], max_total_chars: int
 
 def _build_user_prompt(
     profile_name: str,
-    pr_data: dict,
+    pr_data: dict[str, Any],
     context_files: dict[str, str] | None = None,
     expertise_context: str = "",
     include_existing_threads: bool = True,
@@ -313,6 +319,9 @@ class CritiqueItem(BaseModel):
         description="Does the phrasing sound like the reviewer? yes/close/no"
     )
     already_covered: str = Field(description="Is this already covered by existing threads? yes/no")
+    technical_evidence: Literal["supported", "unsupported", "uncertain"] = Field(
+        description="Required evidence verdict grounded in supplied code, not reviewer voice"
+    )
 
 
 class CritiqueOutput(BaseModel):
@@ -327,19 +336,35 @@ set of review comments generated to mimic a specific reviewer, along with \
 examples of that reviewer's actual past comments.
 
 For each generated comment, assess:
-1. Would this reviewer actually leave this comment? (yes/probably/no)
-   - "no" if it's a generic engineering observation that doesn't match this \
-reviewer's known focus areas.
-   - "no" if the reviewer's examples show they never comment on this type of issue.
+1. Is this a grounded, relevant finding consistent with observed priorities? \
+(yes/probably/no)
+   - "no" for unsupported or irrelevant findings.
+   - Check technical claims against the supplied diff and source context. \
+Do not invent missing code behavior; state uncertainty where context is absent.
+   - Missing examples of a topic are not a reason to reject a concrete issue.
+   - "no" if the comment fabricates firsthand history, intentions, authorship, \
+promises, approval, or authority on behalf of the real person.
    - "no" if it sounds like a different reviewer or a generic AI code review.
 2. Does the phrasing sound like them? (yes/close/no)
    - Compare formality level, use of questions vs statements, comment length.
    - "no" if the comment is declarative when the reviewer typically asks questions.
    - "no" if the comment is formal when the reviewer is casual.
 3. Is this already covered by existing review threads? (yes/no)
+4. technical_evidence (supported/unsupported/uncertain), required for every comment:
+   - supported: the supplied diff/source establishes the technical claim, or \
+the comment asks a grounded question about missing evidence without asserting \
+an answer. A question does not excuse an unsupported factual premise.
+   - unsupported: claims behavior of a caller or file not provided, contradicts \
+the supplied code, or fabricates personal history, intention, or authority. \
+Reviewer voice and plausible general knowledge are not technical evidence.
+   - uncertain: unanswered speculation is presented as reassurance, safety, \
+or intended behavior (for example "the caller caps this anyway" without its code).
+Do not mark unsupported reassurance as supported merely because it is qualified \
+with "probably", "in practice", "I think", or phrased inside a larger question.
 
-Be VERY strict. The goal is zero false positives — a comment the reviewer would \
-never make is actively harmful. When in doubt, drop the comment.
+Be strict about evidence and relevance. A small sample of past comments does \
+not define everything the person might review; uncertainty about style alone \
+must not erase a grounded correctness finding.
 
 Respond with valid JSON matching the provided schema.
 """
@@ -354,6 +379,9 @@ _CRITIQUE_USER_TEMPLATE = """\
 ## Existing Review Threads
 {existing_threads}
 
+## Code Context for Technical Verification
+{code_context}
+
 Assess each generated comment by its index (0-based).
 """
 
@@ -363,6 +391,7 @@ def _run_self_critique(
     review: ReviewOutput,
     examples_text: str,
     existing_threads: str,
+    code_context: str = "",
 ) -> ReviewOutput:
     """Run a self-critique pass to filter low-quality comments."""
     if not review.inline_comments:
@@ -371,13 +400,16 @@ def _run_self_critique(
     generated = []
     for i, c in enumerate(review.inline_comments):
         generated.append(
-            f"[{i}] {c.file}: {c.comment}\n  (confidence: {c.confidence})\n  > {c.diff_snippet[:200]}"
+            f"[{i}] {c.file}: {c.comment}\n  (confidence: {c.confidence})\n"
+            f"  > {c.diff_snippet[:200]}"
         )
 
     user_prompt = _CRITIQUE_USER_TEMPLATE.format(
         examples=examples_text if examples_text else "(No examples available.)",
         generated_comments="\n\n".join(generated),
         existing_threads=existing_threads,
+        code_context=code_context
+        or "(Code context unavailable; do not invent technical evidence.)",
     )
 
     result = run_inference(
@@ -388,21 +420,33 @@ def _run_self_critique(
     )
 
     if not isinstance(result, CritiqueOutput):
+        if code_context:
+            logger.warning("Self-critique lacked structured evidence; dropping all comments.")
+            return review.model_copy(update={"inline_comments": []})
         logger.warning("Self-critique did not return structured output; keeping all comments.")
         return review
 
     # Build set of indices to drop
     drop_indices: set[int] = set()
+    supported_indices: set[int] = set()
     for item in result.assessments:
         idx = item.comment_index
         if idx < 0 or idx >= len(review.inline_comments):
             continue
+        if code_context:
+            if item.technical_evidence == "supported":
+                supported_indices.add(idx)
+            else:
+                drop_indices.add(idx)
         # Drop if reviewer wouldn't leave it
         if item.would_reviewer_leave_this.lower() == "no":
             drop_indices.add(idx)
         # Drop if already covered
         if item.already_covered.lower() == "yes":
             drop_indices.add(idx)
+
+    if code_context:
+        drop_indices.update(set(range(len(review.inline_comments))) - supported_indices)
 
     if drop_indices:
         logger.info(
@@ -424,7 +468,7 @@ def _run_self_critique(
 
 
 def _apply_filters(review: ReviewOutput, config: LegitConfig) -> ReviewOutput:
-    """Apply confidence threshold and max_comments cap."""
+    """Apply thresholds and summarize only the retained findings."""
     threshold = config.review.abstention_threshold
     max_comments = config.review.max_comments
 
@@ -439,7 +483,11 @@ def _apply_filters(review: ReviewOutput, config: LegitConfig) -> ReviewOutput:
         filtered = filtered[:max_comments]
 
     return ReviewOutput(
-        summary=review.summary,
+        summary=(
+            f"{len(filtered)} comment{'s' if len(filtered) != 1 else ''} to consider below."
+            if filtered
+            else "No inline findings retained; this is not an approval."
+        ),
         inline_comments=filtered,
         abstained_files=review.abstained_files,
         abstention_reason=review.abstention_reason,
@@ -473,7 +521,7 @@ def _format_dry_run(review: ReviewOutput, profile_name: str) -> str:
             lines.append("")
     else:
         lines.append("## Inline Comments")
-        lines.append("*(no comments — reviewer would likely approve without inline feedback)*")
+        lines.append("*(no comments retained — this is not an approval)*")
         lines.append("")
 
     if review.abstained_files:
@@ -516,7 +564,7 @@ def _post_review_to_github(
     review_body = review.summary
 
     # Build inline comments for the review
-    comments_payload: list[dict] = []
+    comments_payload: list[dict[str, Any]] = []
     for comment in review.inline_comments:
         # The GitHub Review API expects comments with path and body.
         # We use a single-comment review body approach for simplicity.
@@ -531,7 +579,7 @@ def _post_review_to_github(
             }
         )
 
-    payload: dict = {
+    payload: dict[str, Any] = {
         "body": review_body,
         "event": config.review.review_action,
     }
@@ -545,7 +593,7 @@ def _post_review_to_github(
         resp.raise_for_status()
         result = resp.json()
 
-    return result.get("html_url", url)
+    return str(result.get("html_url", url))
 
 
 # ---------------------------------------------------------------------------
@@ -560,6 +608,9 @@ def generate_review(
     dry_run: bool = True,
     output_path: Path | None = None,
     include_existing_threads: bool = True,
+    pr_snapshot: dict[str, Any] | None = None,
+    context_snapshot: dict[str, str] | None = None,
+    require_public: bool = False,
 ) -> ReviewOutput:
     """Generate a PR review in the voice of *profile_name*.
 
@@ -574,6 +625,11 @@ def generate_review(
     8. Apply max_comments cap
     9. Output: dry-run to stdout/file, or post to GitHub
     """
+    if (pr_snapshot is None) != (context_snapshot is None):
+        raise ValueError("PR and context snapshots must be supplied together")
+    if pr_snapshot is not None and not dry_run:
+        raise ValueError("Historical snapshots may only be reviewed in dry-run mode")
+
     # -- Step 1: Load profile + expertise index --------------------------------
     console.print(f"[bold]Loading profile:[/] {profile_name}")
     profile_document = load_profile(profile_name)
@@ -591,19 +647,28 @@ def generate_review(
 
     # -- Step 2: Fetch PR data -----------------------------------------------
     console.print(f"[bold]Fetching PR:[/] {pr_url}")
-    with GitHubClient(config.github) as gh:
-        pr_data = gh.fetch_pr_for_review(pr_url)
+    if pr_snapshot is not None:
+        pr_data = pr_snapshot
+        context_files = context_snapshot
+    else:
+        with GitHubClient(config.github) as gh:
+            pr_data = (
+                gh.fetch_pr_for_review(pr_url, require_public=True)
+                if require_public
+                else gh.fetch_pr_for_review(pr_url)
+            )
 
-        pr_title = pr_data["metadata"].get("title", "(untitled)")
-        file_count = len(pr_data.get("files", []))
-        console.print(f"  PR: {pr_title} ({file_count} files changed)")
+            pr_title = pr_data["metadata"].get("title", "(untitled)")
+            file_count = len(pr_data.get("files", []))
+            console.print(f"  PR: {pr_title} ({file_count} files changed)")
 
-        # -- Step 2b: Fetch codebase context (full source files) ----------------
-        console.print("[bold]Fetching codebase context...[/]")
-        context_files = gh.fetch_pr_context_files(pr_url, pr_data)
-        console.print(
-            f"  Fetched {len(context_files)} source files ({sum(len(v) for v in context_files.values()) // 1024}KB)"
-        )
+            # -- Step 2b: Fetch codebase context (full source files) ----------------
+            console.print("[bold]Fetching codebase context...[/]")
+            context_files = gh.fetch_pr_context_files(pr_url, pr_data)
+            console.print(
+                f"  Fetched {len(context_files)} source files "
+                f"({sum(len(v) for v in context_files.values()) // 1024}KB)"
+            )
 
     # -- Step 3: Retrieve similar past comments ------------------------------
     console.print("[bold]Retrieving similar past comments...[/]")
@@ -617,12 +682,10 @@ def generate_review(
     from legit.embeddings import is_available as embeddings_available
     from legit.embeddings import load_embedding_index
 
-    retrieval_method = "bm25"
     embedding_index = load_embedding_index(profile_name) if embeddings_available() else None
 
     if embedding_index and len(embedding_index.documents) > 0:
         # Semantic retrieval — embed diff hunks and search
-        retrieval_method = "semantic"
         query_texts = [f"{h.get('file_path', '')} {h.get('content', '')}" for h in diff_hunks]
         if not query_texts:
             query_texts = queries  # fallback to BM25-style text queries
@@ -699,13 +762,16 @@ def generate_review(
         )
     else:
         existing_threads = "(existing discussion withheld)"
-    review = _run_self_critique(config, review, examples_text, existing_threads)
+    review = _run_self_critique(
+        config, review, examples_text, existing_threads, code_context=user_prompt
+    )
     console.print(f"  After critique: {len(review.inline_comments)} comments remain")
 
     # -- Steps 7 & 8: Threshold filtering and max_comments cap ---------------
     review = _apply_filters(review, config)
     console.print(
-        f"  After filtering: {len(review.inline_comments)} comments (threshold={config.review.abstention_threshold})"
+        f"  After filtering: {len(review.inline_comments)} comments "
+        f"(threshold={config.review.abstention_threshold})"
     )
 
     # -- Step 9: Output ------------------------------------------------------

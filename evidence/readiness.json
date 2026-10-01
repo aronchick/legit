@@ -1,0 +1,170 @@
+{
+  "personas": [
+    {
+      "name": "mitchellh",
+      "profile_present": true,
+      "bm25_documents": 126,
+      "holdout_after": "2026-04-01",
+      "artifact_status": "present",
+      "quality_status": "unverified",
+      "problems": [],
+      "sources": [
+        {
+          "repo": "ghostty-org/ghostty",
+          "username": "mitchellh",
+          "streams": {
+            "pr_comments": {
+              "count": 37,
+              "earliest": "2025-10-11T21:45:42Z",
+              "latest": "2026-03-31T02:38:39Z"
+            },
+            "issue_comments": {
+              "count": 89,
+              "earliest": "2023-09-14T15:29:39Z",
+              "latest": "2026-03-31T02:39:42Z"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "wdbaruni",
+      "profile_present": false,
+      "bm25_documents": 0,
+      "holdout_after": null,
+      "artifact_status": "incomplete",
+      "quality_status": "unverified",
+      "problems": [
+        "Profile missing or unreadable",
+        "BM25 index missing, empty or invalid"
+      ],
+      "sources": [
+        {
+          "repo": "bacalhau-project/bacalhau",
+          "username": "wdbaruni",
+          "streams": {
+            "pr_comments": {
+              "count": null,
+              "earliest": null,
+              "latest": null
+            },
+            "issue_comments": {
+              "count": null,
+              "earliest": null,
+              "latest": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "thockin",
+      "profile_present": true,
+      "bm25_documents": 127,
+      "holdout_after": "2026-04-01",
+      "artifact_status": "present",
+      "quality_status": "unverified",
+      "problems": [],
+      "sources": [
+        {
+          "repo": "kubernetes/kubernetes",
+          "username": "thockin",
+          "streams": {
+            "pr_comments": {
+              "count": 109,
+              "earliest": "2020-01-10T18:15:05Z",
+              "latest": "2026-03-18T23:36:02Z"
+            },
+            "issue_comments": {
+              "count": 18,
+              "earliest": "2018-05-14T22:28:23Z",
+              "latest": "2026-03-19T00:37:20Z"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "liggitt",
+      "profile_present": true,
+      "bm25_documents": 102,
+      "holdout_after": "2026-04-01",
+      "artifact_status": "present",
+      "quality_status": "unverified",
+      "problems": [],
+      "sources": [
+        {
+          "repo": "kubernetes/kubernetes",
+          "username": "liggitt",
+          "streams": {
+            "pr_comments": {
+              "count": 56,
+              "earliest": "2018-08-29T13:19:46Z",
+              "latest": "2026-03-24T19:52:48Z"
+            },
+            "issue_comments": {
+              "count": 46,
+              "earliest": "2018-04-27T12:52:58Z",
+              "latest": "2026-03-31T14:37:51Z"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "bgrant0607",
+      "profile_present": true,
+      "bm25_documents": 55,
+      "holdout_after": "2026-04-01",
+      "artifact_status": "present",
+      "quality_status": "unverified",
+      "problems": [],
+      "sources": [
+        {
+          "repo": "kubernetes/kubernetes",
+          "username": "bgrant0607",
+          "streams": {
+            "pr_comments": {
+              "count": 12,
+              "earliest": "2014-07-23T20:34:04Z",
+              "latest": "2015-11-21T00:18:22Z"
+            },
+            "issue_comments": {
+              "count": 43,
+              "earliest": "2014-06-11T19:07:03Z",
+              "latest": "2020-08-04T01:51:31Z"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "lavalamp",
+      "profile_present": true,
+      "bm25_documents": 114,
+      "holdout_after": "2026-04-01",
+      "artifact_status": "present",
+      "quality_status": "unverified",
+      "problems": [],
+      "sources": [
+        {
+          "repo": "kubernetes/kubernetes",
+          "username": "lavalamp",
+          "streams": {
+            "pr_comments": {
+              "count": 72,
+              "earliest": "2014-08-28T06:08:42Z",
+              "latest": "2023-02-28T16:26:04Z"
+            },
+            "issue_comments": {
+              "count": 42,
+              "earliest": "2019-02-12T23:15:03Z",
+              "latest": "2023-03-07T18:32:55Z"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "quality_verified": false
+}

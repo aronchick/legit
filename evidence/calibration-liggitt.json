@@ -1,0 +1,34 @@
+{
+  "profile_name": "liggitt",
+  "timestamp": "2026-09-09T18:08:36.192695+00:00",
+  "context_mode": "reviewed_head_inferred_base",
+  "holdout_count": 1,
+  "scored_count": 0,
+  "generation_failure_count": 0,
+  "judge_failure_count": 0,
+  "snapshot_failure_count": 1,
+  "scores": [
+    {
+      "pr_url": "https://github.com/kubernetes/kubernetes/pull/140634",
+      "pr_number": 140634,
+      "status": "snapshot_failed",
+      "issue_detection": 0.0,
+      "voice_fidelity": 0.0,
+      "appropriate_abstention": 0.0,
+      "false_positives": 0.0,
+      "overall": 0.0,
+      "judge_reasoning": "Snapshot failed: Missing, edited or mixed-commit first-round ground truth",
+      "generated_comment_count": 0,
+      "real_comment_count": 2,
+      "reviewed_commit": null,
+      "base_commit": null,
+      "review_id": null,
+      "reviewed_at": null
+    }
+  ],
+  "avg_issue_detection": 0.0,
+  "avg_voice_fidelity": 0.0,
+  "avg_appropriate_abstention": 0.0,
+  "avg_false_positives": 0.0,
+  "avg_overall": 0.0
+}

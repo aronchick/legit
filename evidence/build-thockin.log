@@ -1,0 +1,14 @@
+   Building legit @ file:///Users/daaronch/code/second-brain/projects/legit/implementation
+      Built legit @ file:///Users/daaronch/code/second-brain/projects/legit/implementation
+Uninstalled 1 package in 1ms
+Installed 1 package in 2ms
+Temporal holdout: training only on activity before 2026-04-01
+
+Building profile: thockin
+Phase 1/2: Map-Reduce — 4 parallel workers...
+Structured parse attempt 1/3 failed: Unterminated string starting at: line 18 column 9 (char 1387)
+  Profile generated.
+Phase 2/2: Building BM25 retrieval index...
+  Index saved to .legit/index/thockin/bm25.json
+
+Profile 'thockin' built successfully.

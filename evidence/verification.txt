@@ -1,0 +1,38 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/daaronch/code/second-brain/projects/legit/implementation
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 388 items
+
+tests/test_api_backend.py .......                                        [  1%]
+tests/test_build_provenance.py ....................                      [  6%]
+tests/test_calibrate.py ........                                         [  9%]
+tests/test_calibration_snapshot.py ........................              [ 15%]
+tests/test_claude_backend.py .......                                     [ 17%]
+tests/test_cli.py ...........                                            [ 19%]
+tests/test_config.py .....................                               [ 25%]
+tests/test_expertise.py ..........................                       [ 31%]
+tests/test_github_client.py .....................................        [ 41%]
+tests/test_holdout.py ..............                                     [ 45%]
+tests/test_ingestion_completeness.py ...............                     [ 48%]
+tests/test_integration_pipeline.py ............                          [ 52%]
+tests/test_integration_web.py ............                               [ 55%]
+tests/test_json_extraction.py ..                                         [ 55%]
+tests/test_models.py .......................                             [ 61%]
+tests/test_profile.py .................................                  [ 70%]
+tests/test_readiness.py ..........................                       [ 76%]
+tests/test_retrieval.py ...............................................  [ 88%]
+tests/test_review.py .................................                   [ 97%]
+tests/test_web_auth.py ....                                              [ 98%]
+tests/test_web_preview.py ......                                         [100%]
+
+============================= 388 passed in 3.24s ==============================
+All checks passed!
+74 files already formatted
+Success: no issues found in 15 source files
+Building source distribution...
+Building wheel from source distribution...
+Successfully built dist/legit-0.1.0.tar.gz
+Successfully built dist/legit-0.1.0-py3-none-any.whl
+Change 'private-preview' is valid

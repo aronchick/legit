@@ -15,6 +15,20 @@ app = typer.Typer(
 console = Console(stderr=True)
 
 
+@app.command()
+def readiness() -> None:
+    """Print an offline JSON artifact inventory; does not certify persona quality."""
+    import json
+
+    from legit.config import load_config
+    from legit.readiness import inspect_personas
+
+    rows = inspect_personas(load_config())
+    typer.echo(json.dumps({"personas": rows, "quality_verified": False}, indent=2))
+    if any(row["artifact_status"] != "present" for row in rows):
+        raise typer.Exit(code=1)
+
+
 # ---------------------------------------------------------------------------
 # legit init
 # ---------------------------------------------------------------------------
@@ -75,6 +89,9 @@ def fetch(
         "--skip-reviews",
         help="Skip the slow PR reviews indexing (list PRs → fetch reviews).",
     ),
+    refresh: bool = typer.Option(
+        False, "--refresh", help="Rediscover activity while preserving downloaded content."
+    ),
 ) -> None:
     """Index and download GitHub activity for configured profiles."""
     from legit.config import load_config
@@ -128,7 +145,9 @@ def fetch(
         for source_repo, username in sources:
             console.print(f"\n[bold]Fetching {username} @ {source_repo}[/]")
             try:
-                client.index_activity(source_repo, username, skip_reviews=skip_reviews, since=since)
+                client.index_activity(
+                    source_repo, username, skip_reviews=skip_reviews, since=since, refresh=refresh
+                )
                 if not index_only:
                     client.download_content(source_repo, username)
 
@@ -187,7 +206,7 @@ def build(
 ) -> None:
     """Generate a reviewer profile and BM25 retrieval index."""
     from legit.config import load_config
-    from legit.profile import build_profile, load_raw_data_as_retrieval_docs, save_profile_meta
+    from legit.profile import build_profile, load_raw_data_as_retrieval_docs, save_build_provenance
     from legit.retrieval import build_index
 
     try:
@@ -260,7 +279,7 @@ def build(
         raise typer.Exit(code=1)
 
     # Stamp the boundary so calibrate only evaluates PRs the build never saw
-    save_profile_meta(profile_name, cutoff)
+    save_build_provenance(profile_name, cutoff)
 
     console.print(f"\n[green]Profile '{profile_name}' built successfully.[/]")
 
@@ -398,6 +417,15 @@ def calibrate(
         latest = load_latest_calibration(profile_name)
         if latest:
             console.print(f"\n[bold]Latest results ({latest.timestamp}):[/]")
+            console.print(
+                f"  Scored: {latest.scored_count}/{latest.holdout_count}; "
+                f"context: {latest.context_mode}"
+            )
+            console.print(
+                f"  Failures — snapshot: {latest.snapshot_failure_count}, "
+                f"generation: {latest.generation_failure_count}, "
+                f"judge: {latest.judge_failure_count}"
+            )
             console.print(f"  Issue detection:       {latest.avg_issue_detection}/10")
             console.print(f"  Voice fidelity:        {latest.avg_voice_fidelity}/10")
             console.print(f"  Appropriate abstention: {latest.avg_appropriate_abstention}/10")
@@ -424,15 +452,29 @@ def calibrate(
     # Display results
     console.print(f"[bold]Calibration Results: {profile_name}[/]\n")
     console.print(f"  Holdout PRs tested:    {result.holdout_count}")
-    console.print(f"  Issue detection:       {result.avg_issue_detection}/10")
-    console.print(f"  Voice fidelity:        {result.avg_voice_fidelity}/10")
-    console.print(f"  Appropriate abstention: {result.avg_appropriate_abstention}/10")
-    console.print(f"  False positives:       {result.avg_false_positives}/10")
-    console.print(f"  [bold]Overall:               {result.avg_overall}/10[/]")
+    console.print(f"  Scored successfully:  {result.scored_count}")
+    console.print(f"  Context:              {result.context_mode}")
+    console.print(
+        f"  Failures — snapshot: {result.snapshot_failure_count}, "
+        f"generation: {result.generation_failure_count}, judge: {result.judge_failure_count}"
+    )
+    if result.scored_count:
+        console.print(f"  Issue detection:       {result.avg_issue_detection}/10")
+        console.print(f"  Voice fidelity:        {result.avg_voice_fidelity}/10")
+        console.print(f"  Appropriate abstention: {result.avg_appropriate_abstention}/10")
+        console.print(f"  False positives:       {result.avg_false_positives}/10")
+        console.print(f"  [bold]Overall:               {result.avg_overall}/10[/]")
+    else:
+        console.print("  No quality score: no holdouts were successfully scored.")
 
     # Per-PR breakdown
     console.print("\n[bold]Per-PR Scores:[/]\n")
     for score in result.scores:
+        if score.status != "scored":
+            console.print(
+                f"  PR #{score.pr_number}: {score.status} — {score.judge_reasoning}", markup=False
+            )
+            continue
         status = "[green]" if score.overall >= 6 else "[yellow]" if score.overall >= 4 else "[red]"
         console.print(
             f"  PR #{score.pr_number:6d}: {status}{score.overall:4.1f}/10[/]  "

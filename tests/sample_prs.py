@@ -140,9 +140,11 @@ REFACTOR_HANDLER_MODULES = {
             f"diff --git a/pkg/handlers/{name}.go b/pkg/handlers/{name}.go\n"
             f"--- a/pkg/handlers/{name}.go\n"
             f"+++ b/pkg/handlers/{name}.go\n"
-            f"@@ -{10 + i * 5},3 +{10 + i * 5},5 @@ func Handle{name.title()}(w http.ResponseWriter, r *http.Request) {{\n"
+            f"@@ -{10 + i * 5},3 +{10 + i * 5},5 @@ func "
+            f"Handle{name.title()}(w http.ResponseWriter, r *http.Request) {{\n"
             f'-    http.Error(w, "internal error", 500)\n'
-            f'+    respondError(w, r, fmt.Errorf("{name} handler failed: %w", err), http.StatusInternalServerError)\n'
+            f'+    respondError(w, r, fmt.Errorf("{name} handler failed: %w", err), '
+            "http.StatusInternalServerError)\n"
             for i, name in enumerate(
                 [
                     "auth",
@@ -172,7 +174,10 @@ REFACTOR_HANDLER_MODULES = {
     ],
     "comments": [
         {
-            "body": "Have you benchmarked the new respondError helper? The old inline calls were zero-alloc.",
+            "body": (
+                "Have you benchmarked the new respondError helper? "
+                "The old inline calls were zero-alloc."
+            ),
             "user": {"login": "perf-reviewer"},
             "path": "pkg/handlers/auth.go",
         },
@@ -237,7 +242,8 @@ VENDOR_AND_GENERATED = {
         "number": 600,
     },
     "diff": (
-        "diff --git a/vendor/google.golang.org/grpc/status.go b/vendor/google.golang.org/grpc/status.go\n"
+        "diff --git a/vendor/google.golang.org/grpc/status.go "
+        "b/vendor/google.golang.org/grpc/status.go\n"
         "--- a/vendor/google.golang.org/grpc/status.go\n"
         "+++ b/vendor/google.golang.org/grpc/status.go\n"
         "@@ -1,3 +1,3 @@\n"

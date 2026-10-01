@@ -1,0 +1,115 @@
+Loading profile: mitchellh
+  Loaded expertise index (4 directories)
+Fetching PR: https://github.com/ghostty-org/ghostty/pull/14167
+  PR: terminal/parser: preserve CSI subparameter separators (4 files changed)
+Fetching codebase context...
+  Fetched 4 source files (82KB)
+Retrieving similar past comments...
+  Retrieved 10 examples via semantic search
+  Matched 1 areas of expertise
+Generating review...
+INFO:legit.model_runner:Claude CLI reported model usage: claude-fable-5-1
+  Generated 6 inline comments, 0 abstained files
+Running self-critique...
+INFO:legit.model_runner:Claude CLI reported model usage: claude-fable-5-1
+INFO:legit.review:Self-critique dropping 1/6 comments
+  After critique: 5 comments remain
+  After filtering: 5 comments (threshold=0.5)
+                              Review by mitchellh                               
+
+Summary                                                                         
+
+There's good stuff here. Params is the right shape, the state machine and the   
+stream fast path sharing one accumulator is something I've wanted for awhile,   
+and I've been saying we'd add a heap slow path for params "one day" since the 24
+limit went in. Appreciate the disclosure and that you explained your own        
+reasoning too.                                                                  
+
+Two things before I'd vouch:                                                    
+
+ 1 This is front-running the multi-cursor protocol. GroupIterator isn't used by 
+   anything in this PR and the > q case in allowsSubparams is for a sequence we 
+   don't handle anywhere yet. Drop both and bring them with the cursors PR. I   
+   don't want to land an allowlist entry for something we don't parse, and if   
+   that PR changes shape this becomes dead code nobody remembers.               
+ 2 This is the hottest path in the parser. push went from an inline array store 
+   to a function call with a handful of branches per separator, and that's in   
+   both the state machine and the stream loop. Did you benchmark this? Please   
+   post stream bench numbers before/after. I've been burned by icache here      
+   before, that's literally why the warn functions are noinline.                
+
+The 256 thing is fine, the bit set needs a bound anyway so that's a good enough 
+reason.                                                                         
+
+Once those are sorted I'd probably tag this for 1.4 and let it bake in tip for a
+bit since it touches every CSI we parse.                                        
+
+Inline Comments                                                                 
+
+src/terminal/Parser.zig (confidence: 0.90)                                      
+
+▌  •                                                                          
+▌                'q' => std.mem.eql(u8, self.intermediates, "> "),            
+▌                                                                             
+
+Let's not add this here. We don't handle this sequence anywhere yet so this is  
+an allowlist entry for nothing. Add it in the cursors PR alongside the code that
+actually consumes it.                                                           
+
+src/terminal/Parser.zig (confidence: 0.90)                                      
+
+▌  •                                                                          
+▌        pub const GroupIterator = struct {                                   
+▌                                                                             
+▌  •                                                                          
+▌            params: []const u16,                                             
+▌                                                                             
+▌  •                                                                          
+▌            params_sep: *const SepList,                                      
+▌                                                                             
+
+Nothing uses this. Same thing, bring it with the PR that needs it. If the       
+cursors protocol lands in a different shape this is dead code nobody remembers  
+to delete.                                                                      
+
+src/terminal/stream.zig (confidence: 0.85)                                      
+
+▌  •                                                                          
+▌                    ':', ';' => {                                            
+▌                                                                             
+▌  •                                                                          
+▌                        params.push(acc, c == ':');                          
+▌                                                                             
+
+This used to be an inline array store and a bit set. Now its a call with 4 or 5 
+branches per ; in the hottest loop we have. You inlined digit for exactly this  
+reason so I'm surprised push isn't. Did you measure it? I'd want bench numbers  
+before/after, and probably an inline fast path for the len < INLINE_PARAMS case 
+with the spill as a noinline cold call.                                         
+
+src/terminal/Parser.zig (confidence: 0.70)                                      
+
+▌  • pub fn push(self: *Params, value: u16, colon: bool) void {               
+▌  •                                                                          
+▌        if (self.failed) return;                                             
+▌                                                                             
+▌  •                                                                          
+▌        if (self.len >= MAX_PARAMS) {                                        
+▌                                                                             
+
+Same comment as the stream side. The spill branch is fine being big but it      
+shouldn't be in the same function as the inline store. Split the cold half out  
+so the common path stays small.                                                 
+
+src/terminal/Parser.zig (confidence: 0.55)                                      
+
+▌ +/// Kakoune turned up with an SGR command that uses 17, then 24 on +///    
+▌ empirical data, and is now 256 to match kitty's own limit, which the +///   
+▌ cursors protocol is written against.                                        
+
+Bikeshed, this reads like a changelog. The actual reason 256 is bounded at all  
+is the bit set needs a static size, say that and drop the history. Also don't   
+reference the cursors protocol until we have it.                                
+INFO:httpx2:HTTP Request: POST http://testserver/review "HTTP/1.1 200 OK"
+INFO:httpx2:HTTP Request: POST http://testserver/feedback "HTTP/1.1 200 OK"
+{"review_id": "17bdf85e-7093-4768-8cac-fd9266b4185f", "persona": "mitchellh", "pr_url": "https://github.com/ghostty-org/ghostty/pull/14167", "output": {"summary": "There's good stuff here. `Params` is the right shape, the state machine and the stream fast path sharing one accumulator is something I've wanted for awhile, and I've been saying we'd add a heap slow path for params \"one day\" since the 24 limit went in. Appreciate the disclosure and that you explained your own reasoning too.\n\nTwo things before I'd vouch:\n\n1. This is front-running the multi-cursor protocol. `GroupIterator` isn't used by anything in this PR and the `> q` case in `allowsSubparams` is for a sequence we don't handle anywhere yet. Drop both and bring them with the cursors PR. I don't want to land an allowlist entry for something we don't parse, and if that PR changes shape this becomes dead code nobody remembers.\n\n2. This is the hottest path in the parser. `push` went from an inline array store to a function call with a handful of branches per separator, and that's in both the state machine and the stream loop. Did you benchmark this? Please post stream bench numbers before/after. I've been burned by icache here before, that's literally why the warn functions are noinline.\n\nThe 256 thing is fine, the bit set needs a bound anyway so that's a good enough reason.\n\nOnce those are sorted I'd probably tag this for 1.4 and let it bake in tip for a bit since it touches every CSI we parse.", "inline_comments": [{"file": "src/terminal/Parser.zig", "hunk_header": "@@ -78,20 +79,83 @@ pub const Action = union(enum) {", "diff_snippet": "+                'q' => std.mem.eql(u8, self.intermediates, \"> \"),", "comment": "Let's not add this here. We don't handle this sequence anywhere yet so this is an allowlist entry for nothing. Add it in the cursors PR alongside the code that actually consumes it.", "confidence": 0.9, "side": "addition"}, {"file": "src/terminal/Parser.zig", "hunk_header": "@@ -78,20 +79,83 @@ pub const Action = union(enum) {", "diff_snippet": "+        pub const GroupIterator = struct {\n+            params: []const u16,\n+            params_sep: *const SepList,", "comment": "Nothing uses this. Same thing, bring it with the PR that needs it. If the cursors protocol lands in a different shape this is dead code nobody remembers to delete.", "confidence": 0.9, "side": "addition"}, {"file": "src/terminal/stream.zig", "hunk_header": "@@ -976,42 +972,36 @@ pub fn Stream(comptime H: type) type {", "diff_snippet": "+                    ':', ';' => {\n+                        params.push(acc, c == ':');", "comment": "This used to be an inline array store and a bit set. Now its a call with 4 or 5 branches per `;` in the hottest loop we have. You inlined `digit` for exactly this reason so I'm surprised `push` isn't. Did you measure it? I'd want bench numbers before/after, and probably an inline fast path for the `len < INLINE_PARAMS` case with the spill as a noinline cold call.", "confidence": 0.85, "side": "addition"}, {"file": "src/terminal/Parser.zig", "hunk_header": "@@ -215,42 +286,269 @@ state: State,", "diff_snippet": "+    pub fn push(self: *Params, value: u16, colon: bool) void {\n+        if (self.failed) return;\n+        if (self.len >= MAX_PARAMS) {", "comment": "Same comment as the stream side. The spill branch is fine being big but it shouldn't be in the same function as the inline store. Split the cold half out so the common path stays small.", "confidence": 0.7, "side": "addition"}, {"file": "src/terminal/Parser.zig", "hunk_header": "@@ -195,18 +259,25 @@ pub const Action = union(enum) {", "diff_snippet": "+/// Kakoune turned up with an SGR command that uses 17, then 24 on\n+/// empirical data, and is now 256 to match kitty's own limit, which the\n+/// cursors protocol is written against.", "comment": "Bikeshed, this reads like a changelog. The actual reason 256 is bounded at all is the bit set needs a static size, say that and drop the history. Also don't reference the cursors protocol until we have it.", "confidence": 0.55, "side": "addition"}], "abstained_files": [], "abstention_reason": ""}, "handler_status": 200, "synthetic_feedback_readback": true, "synthetic_feedback_removed": true, "human_quality_verified": false}

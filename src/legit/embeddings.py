@@ -14,10 +14,15 @@ from __future__ import annotations
 import json
 import logging
 import os
+from importlib import import_module
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from legit.config import legit_path
 from legit.models import RetrievalDocument
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +34,8 @@ MAX_SEQ_LENGTH = 128
 _HAS_DEPS = True
 try:
     import numpy as np
-    import onnxruntime as ort
+
+    ort = import_module("onnxruntime")
     from tokenizers import Tokenizer
 except ImportError:
     _HAS_DEPS = False
@@ -44,15 +50,22 @@ def is_available() -> bool:
 # Model loading (cached singleton)
 # ---------------------------------------------------------------------------
 
-_tokenizer = None
-_session = None
+
+class _InferenceSession(Protocol):
+    def run(
+        self, output_names: list[str] | None, input_feed: dict[str, NDArray[Any]]
+    ) -> list[NDArray[Any]]: ...
+
+
+_tokenizer: Tokenizer | None = None
+_session: _InferenceSession | None = None
 
 
 def _model_dir() -> Path:
     return Path(os.path.expanduser("~/.cache/legit/models")) / MODEL_DIR_NAME
 
 
-def _ensure_model() -> tuple:
+def _ensure_model() -> tuple[Tokenizer, _InferenceSession]:
     """Load or return cached tokenizer + ONNX session."""
     global _tokenizer, _session
 
@@ -76,9 +89,12 @@ def _ensure_model() -> tuple:
     _tokenizer.enable_padding(pad_id=0, pad_token="[PAD]", length=MAX_SEQ_LENGTH)
     _tokenizer.enable_truncation(max_length=MAX_SEQ_LENGTH)
 
-    _session = ort.InferenceSession(
-        str(onnx_path),
-        providers=["CPUExecutionProvider"],
+    _session = cast(
+        _InferenceSession,
+        ort.InferenceSession(
+            str(onnx_path),
+            providers=["CPUExecutionProvider"],
+        ),
     )
 
     return _tokenizer, _session
@@ -116,7 +132,7 @@ def _download_model(model_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def embed_texts(texts: list[str]) -> np.ndarray:
+def embed_texts(texts: list[str]) -> NDArray[np.float32]:
     """Embed a batch of texts into 384-dim normalized vectors.
 
     Returns a numpy array of shape (len(texts), 384).
@@ -150,7 +166,7 @@ def embed_texts(texts: list[str]) -> np.ndarray:
     norms = np.maximum(norms, 1e-12)
     embeddings = embeddings / norms
 
-    return embeddings.astype(np.float32)
+    return cast("NDArray[np.float32]", embeddings.astype(np.float32))
 
 
 # ---------------------------------------------------------------------------
@@ -163,15 +179,15 @@ class EmbeddingIndex:
 
     def __init__(
         self,
-        vectors: np.ndarray,
-        documents: list[dict],
+        vectors: NDArray[np.float32],
+        documents: list[dict[str, Any]],
         profile_name: str = "",
     ):
         self.vectors = vectors  # (N, 384)
         self.documents = documents  # metadata per vector
         self.profile_name = profile_name
 
-    def search(self, query_texts: list[str], top_k: int = 10) -> list[dict]:
+    def search(self, query_texts: list[str], top_k: int = 10) -> list[dict[str, Any]]:
         """Find the most similar documents for a set of query texts.
 
         Returns deduplicated results across all queries, sorted by similarity.
@@ -186,7 +202,7 @@ class EmbeddingIndex:
 
         # Collect top-K per query, then deduplicate
         seen_texts: set[str] = set()
-        results: list[tuple[float, dict]] = []
+        results: list[tuple[float, dict[str, Any]]] = []
 
         per_query_k = min(top_k, len(self.documents))
         for q_idx in range(len(query_texts)):

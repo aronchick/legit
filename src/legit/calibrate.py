@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from legit.config import LegitConfig, legit_path
-from legit.github_client import GitHubClient
+from legit.github_client import GitHubClient, parse_pr_url
 from legit.model_runner import run_inference
 from legit.models import ReviewOutput
 from legit.profile import load_profile_holdout
@@ -34,8 +36,11 @@ class HoldoutPR(BaseModel):
     pr_url: str
     pr_number: int
     pr_title: str
-    reviewer_comments: list[dict] = Field(default_factory=list)
+    reviewer_comments: list[dict[str, Any]] = Field(default_factory=list)
     reviewer_comment_count: int = 0
+    reviewed_commit: str | None = None
+    reviewed_at: str | None = None
+    review_id: int | None = None
 
 
 class CalibrationScore(BaseModel):
@@ -43,6 +48,10 @@ class CalibrationScore(BaseModel):
 
     pr_url: str
     pr_number: int
+    # Historical artifacts did not distinguish failed judging from valid zeros.
+    status: Literal["unknown", "scored", "snapshot_failed", "generation_failed", "judge_failed"] = (
+        "unknown"
+    )
     issue_detection: float = 0.0  # 0-10: Did we catch the same problems?
     voice_fidelity: float = 0.0  # 0-10: Does it sound like the reviewer?
     appropriate_abstention: float = 0.0  # 0-10: Did we stay quiet where they would?
@@ -53,6 +62,10 @@ class CalibrationScore(BaseModel):
     judge_reasoning: str = ""
     generated_comment_count: int = 0
     real_comment_count: int = 0
+    reviewed_commit: str | None = None
+    base_commit: str | None = None
+    review_id: int | None = None
+    reviewed_at: str | None = None
 
 
 class CalibrationResult(BaseModel):
@@ -60,7 +73,14 @@ class CalibrationResult(BaseModel):
 
     profile_name: str
     timestamp: str
+    context_mode: Literal["unknown", "live_pr_not_review_time", "reviewed_head_inferred_base"] = (
+        "unknown"
+    )
     holdout_count: int = 0
+    scored_count: int = 0
+    generation_failure_count: int = 0
+    judge_failure_count: int = 0
+    snapshot_failure_count: int = 0
     scores: list[CalibrationScore] = Field(default_factory=list)
     avg_issue_detection: float = 0.0
     avg_voice_fidelity: float = 0.0
@@ -98,7 +118,12 @@ def find_holdout_prs(
         q += f" created:>={merged_after} merged:>={merged_after}"
     resp = gh._transport.get(
         "/search/issues",
-        params={"q": q, "per_page": min(count * 3, 100), "sort": "created", "order": "desc"},
+        params={
+            "q": q,
+            "per_page": min(max(count * 10, 30), 100),
+            "sort": "created",
+            "order": "desc",
+        },
     )
     data = resp.json()
     candidates = data.get("items", [])
@@ -115,10 +140,11 @@ def find_holdout_prs(
 
         # Fetch this reviewer's inline comments on this PR
         try:
-            comments_resp = gh._transport.get(
-                f"/repos/{owner}/{repo}/pulls/{pr_num}/comments",
+            all_comments, complete = gh._transport.get_paginated(
+                f"/repos/{owner}/{repo}/pulls/{pr_num}/comments"
             )
-            all_comments = comments_resp.json()
+            if not complete:
+                continue
             if not isinstance(all_comments, list):
                 continue
 
@@ -127,7 +153,21 @@ def find_holdout_prs(
                 for c in all_comments
                 if (c.get("user") or {}).get("login", "").lower() == username.lower()
                 and (c.get("body") or "").strip()
+                and not c.get("in_reply_to_id")
             ]
+
+            if not reviewer_comments:
+                continue
+            # Only the first inline review round: later rounds see intervening fixes.
+            reviewer_comments.sort(key=lambda c: c.get("created_at", ""))
+            first = reviewer_comments[0]
+            review_id = first.get("pull_request_review_id")
+            reviewer_comments = [
+                c for c in reviewer_comments if c.get("pull_request_review_id") == review_id
+            ]
+            commits = {c.get("original_commit_id") for c in reviewer_comments}
+            if not review_id or len(commits) != 1 or None in commits:
+                continue
 
             # Only include PRs where the reviewer left 2+ substantive comments
             if len(reviewer_comments) < 2:
@@ -147,6 +187,9 @@ def find_holdout_prs(
                         for c in reviewer_comments
                     ],
                     reviewer_comment_count=len(reviewer_comments),
+                    reviewed_commit=first.get("original_commit_id"),
+                    reviewed_at=first.get("created_at"),
+                    review_id=review_id,
                 )
             )
 
@@ -159,6 +202,156 @@ def find_holdout_prs(
 # ---------------------------------------------------------------------------
 # LLM-as-judge scoring
 # ---------------------------------------------------------------------------
+
+
+def reconstruct_snapshot(
+    gh: GitHubClient, holdout: HoldoutPR, username: str, holdout_after: str | None
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Use the reviewed head with an inferred base for exploratory comparisons.
+
+    Mutable titles/descriptions and all discussions are withheld. Summary-only
+    reviews, replies, later rounds, missing/binary patches and large PRs are excluded.
+    The current target branch's history is queried by review time and a merge base
+    inferred. Neither the historical target branch nor its exact revision is proven.
+    This is not clean release evidence or a replay of the human's exact context.
+    """
+    if not holdout_after or not all(
+        (holdout.reviewed_commit, holdout.reviewed_at, holdout.review_id)
+    ):
+        raise ValueError("Missing training cutoff or first-review commit provenance")
+    assert holdout.reviewed_commit is not None
+    owner, repo, number = parse_pr_url(holdout.pr_url)
+    prefix = f"/repos/{owner}/{repo}"
+    metadata = gh._transport.get(f"{prefix}/pulls/{number}").json()
+    if (metadata.get("user") or {}).get("login", "").lower() == username.lower():
+        raise ValueError("Reviewer authored the PR")
+    if not metadata.get("created_at") or metadata["created_at"] < holdout_after:
+        raise ValueError("PR predates training cutoff")
+    review = gh._transport.get(f"{prefix}/pulls/{number}/reviews/{holdout.review_id}").json()
+    if (
+        review.get("commit_id") != holdout.reviewed_commit
+        or (review.get("user") or {}).get("login", "").lower() != username.lower()
+        or not review.get("submitted_at")
+    ):
+        raise ValueError("Review identity or commit is not verified")
+    comments, complete = gh._transport.get_paginated(f"{prefix}/pulls/{number}/comments")
+    first_round = sorted(
+        [
+            c
+            for c in comments
+            if not c.get("in_reply_to_id")
+            and (c.get("user") or {}).get("login", "").lower() == username.lower()
+            and c.get("body")
+        ],
+        key=lambda c: c.get("created_at", ""),
+    )
+    if (
+        not complete
+        or not first_round
+        or first_round[0].get("pull_request_review_id") != holdout.review_id
+    ):
+        raise ValueError("First inline review round is not verified")
+    first_round = [c for c in first_round if c.get("pull_request_review_id") == holdout.review_id]
+    if (
+        len(first_round) < 2
+        or any(c.get("original_commit_id") != holdout.reviewed_commit for c in first_round)
+        or first_round[0].get("created_at") != holdout.reviewed_at
+        or any(c.get("updated_at") != c.get("created_at") for c in first_round)
+    ):
+        raise ValueError("Missing, edited or mixed-commit first-round ground truth")
+    holdout.reviewer_comments = [
+        {"body": c["body"], "path": c.get("path", ""), "diff_hunk": c.get("diff_hunk", "")}
+        for c in first_round
+    ]
+    holdout.reviewer_comment_count = len(first_round)
+    base_ref = (metadata.get("base") or {}).get("ref")
+    if not base_ref:
+        raise ValueError("Missing target branch")
+    bases = gh._transport.get(
+        f"{prefix}/commits",
+        params={"sha": base_ref, "until": holdout.reviewed_at, "per_page": 1},
+    ).json()
+    if not isinstance(bases, list) or not bases or not bases[0].get("sha"):
+        raise ValueError("Target branch history unavailable at review time")
+    comparison = gh._transport.get(
+        f"{prefix}/compare/{bases[0]['sha']}...{holdout.reviewed_commit}"
+    ).json()
+    if comparison.get("status") not in {"ahead", "diverged"}:
+        raise ValueError("Reviewed commit has no reconstructable unmerged delta")
+    files = comparison.get("files", [])
+    if not files or len(files) >= 300 or any(not f.get("patch") for f in files):
+        raise ValueError("Incomplete, binary, empty or oversized historical diff")
+    for file in files:
+        _validate_patch(file)
+    diff = "\n".join(
+        f"diff --git a/{f.get('previous_filename', f['filename'])} b/{f['filename']}\n"
+        f"--- a/{f.get('previous_filename', f['filename'])}\n+++ b/{f['filename']}\n{f['patch']}"
+        for f in files
+    )
+    if len(diff) > 120_000:
+        raise ValueError("Historical diff exceeds prompt budget")
+    paths = [f["filename"] for f in files if f.get("status") != "removed"]
+    context = gh.fetch_file_contents(owner, repo, paths, ref=holdout.reviewed_commit)
+    if set(context) != set(paths) or sum(map(len, context.values())) > 200_000:
+        raise ValueError("Historical source context incomplete or exceeds prompt budget")
+    snapshot = {
+        "metadata": {
+            "title": "Historical review (mutable title withheld)",
+            "body": "",
+            "user": metadata.get("user"),
+            "head": {"sha": holdout.reviewed_commit},
+            "base": comparison.get("merge_base_commit", {}),
+        },
+        "diff": diff,
+        "files": files,
+        "comments": [],
+        "reviews": [],
+        "linked_issues": [],
+    }
+    return snapshot, context
+
+
+def _validate_patch(file: dict[str, Any]) -> None:
+    """Reject truncated/malformed unified hunks and changed-line count mismatches."""
+    patch = file.get("patch")
+    if not isinstance(patch, str) or not patch:
+        raise ValueError("Missing unified patch")
+    expected_additions = file.get("additions")
+    expected_deletions = file.get("deletions")
+    if type(expected_additions) is not int or type(expected_deletions) is not int:
+        raise ValueError("Missing authoritative patch change counts")
+    additions = deletions = 0
+    remaining_old = remaining_new = 0
+    seen_hunk = False
+    for line in patch.splitlines():
+        header = re.fullmatch(r"@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@.*", line)
+        if header:
+            if remaining_old or remaining_new:
+                raise ValueError("Truncated unified patch hunk")
+            remaining_old = int(header.group(1)) if header.group(1) is not None else 1
+            remaining_new = int(header.group(2)) if header.group(2) is not None else 1
+            seen_hunk = True
+            continue
+        if line == "\\ No newline at end of file" and seen_hunk:
+            continue
+        if not seen_hunk or not line or line[0] not in {"+", "-", " "}:
+            raise ValueError("Malformed unified patch line")
+        if line[0] == "+":
+            additions += 1
+            remaining_new -= 1
+        elif line[0] == "-":
+            deletions += 1
+            remaining_old -= 1
+        else:
+            remaining_old -= 1
+            remaining_new -= 1
+        if remaining_old < 0 or remaining_new < 0:
+            raise ValueError("Unified patch exceeds declared hunk size")
+    if not seen_hunk or remaining_old or remaining_new:
+        raise ValueError("Truncated unified patch hunk")
+    if additions != expected_additions or deletions != expected_deletions:
+        raise ValueError("Unified patch does not match API change counts")
+
 
 _JUDGE_SYSTEM = """\
 You are an expert evaluator comparing an AI-generated code review against the \
@@ -234,8 +427,8 @@ def _score_review(
 
     # Format AI comments
     ai_parts = []
-    for c in generated.inline_comments:
-        ai_parts.append(f"**{c.file}** (confidence: {c.confidence})\n{c.comment}")
+    for comment in generated.inline_comments:
+        ai_parts.append(f"**{comment.file}** (confidence: {comment.confidence})\n{comment.comment}")
     ai_text = "\n\n---\n\n".join(ai_parts) if ai_parts else "(no inline comments)"
 
     user_prompt = _JUDGE_USER.format(
@@ -284,6 +477,7 @@ def _score_review(
         return CalibrationScore(
             pr_url=holdout.pr_url,
             pr_number=holdout.pr_number,
+            status="scored",
             issue_detection=result.issue_detection,
             voice_fidelity=result.voice_fidelity,
             appropriate_abstention=result.appropriate_abstention,
@@ -298,6 +492,7 @@ def _score_review(
     return CalibrationScore(
         pr_url=holdout.pr_url,
         pr_number=holdout.pr_number,
+        status="judge_failed",
         judge_reasoning=f"Judge failed: {result}",
         generated_comment_count=len(generated.inline_comments),
         real_comment_count=holdout.reviewer_comment_count,
@@ -319,6 +514,7 @@ def run_calibration(
 
     Returns a CalibrationResult with per-PR scores and averages.
     """
+    from legit.profile import verify_build_provenance
     from legit.review import generate_review
 
     # Find the profile's source repo
@@ -330,12 +526,14 @@ def run_calibration(
     if not profile_cfg:
         raise ValueError(f"Profile '{profile_name}' not found")
 
+    verify_build_provenance(profile_name)
+
     src = profile_cfg.sources[0]
     owner, repo = src.repo.split("/", 1)
 
-    # Temporal holdout boundary: prefer the cutoff stamped at build time,
-    # fall back to config. Without one, eval PRs may overlap training data.
-    holdout_after = load_profile_holdout(profile_name) or config.calibration.holdout_after
+    # Only a cutoff stamped at build time attests to a training boundary;
+    # changing config after building must not make an unfiltered profile eligible.
+    holdout_after = load_profile_holdout(profile_name)
     if holdout_after:
         logger.info("Holdout boundary: only evaluating PRs created+merged >= %s", holdout_after)
     else:
@@ -345,7 +543,7 @@ def run_calibration(
         )
 
     # Step 1: Find holdout PRs (or use provided ones)
-    if not holdouts:
+    if holdouts is None:
         with GitHubClient(config.github) as gh:
             holdouts = find_holdout_prs(
                 gh, owner, repo, src.username, count=holdout_count, merged_after=holdout_after
@@ -353,6 +551,13 @@ def run_calibration(
 
     if not holdouts:
         raise RuntimeError(f"No holdout PRs found for {src.username} in {src.repo}")
+
+    logger.warning(
+        "Exploratory calibration only: the reviewed head is verified but the base is "
+        "inferred from the current target branch's history. The historical target branch "
+        "and exact base are unverified; results are not clean release evidence. "
+        "Mutable prose, summary-only reviews and later rounds are excluded."
+    )
 
     # Step 2: Generate reviews and score each
     scores: list[CalibrationScore] = []
@@ -366,7 +571,14 @@ def run_calibration(
             holdout.reviewer_comment_count,
         )
 
+        phase = "snapshot"
+        generated = None
         try:
+            with GitHubClient(config.github) as gh:
+                pr_snapshot, context_snapshot = reconstruct_snapshot(
+                    gh, holdout, src.username, holdout_after
+                )
+            phase = "generation"
             # Generate review. Existing threads are withheld — the ground-truth
             # comments live on these PRs and must not reach the prompt.
             generated = generate_review(
@@ -375,10 +587,21 @@ def run_calibration(
                 pr_url=holdout.pr_url,
                 dry_run=True,
                 include_existing_threads=False,
+                pr_snapshot=pr_snapshot,
+                context_snapshot=context_snapshot,
             )
 
             # Score against ground truth
-            score = _score_review(config, holdout, generated)
+            phase = "judge"
+            score = _score_review(
+                config,
+                holdout.model_copy(update={"pr_title": pr_snapshot["metadata"]["title"]}),
+                generated,
+            )
+            score.reviewed_commit = holdout.reviewed_commit
+            score.reviewed_at = holdout.reviewed_at
+            score.review_id = holdout.review_id
+            score.base_commit = pr_snapshot["metadata"].get("base", {}).get("sha")
             scores.append(score)
 
             logger.info(
@@ -397,19 +620,32 @@ def run_calibration(
                 CalibrationScore(
                     pr_url=holdout.pr_url,
                     pr_number=holdout.pr_number,
-                    judge_reasoning=f"Generation failed: {exc}",
+                    status=(
+                        "snapshot_failed"
+                        if phase == "snapshot"
+                        else "generation_failed"
+                        if phase == "generation"
+                        else "judge_failed"
+                    ),
+                    judge_reasoning=f"{phase.capitalize()} failed: {exc}",
+                    generated_comment_count=len(generated.inline_comments) if generated else 0,
                     real_comment_count=holdout.reviewer_comment_count,
                 )
             )
 
     # Step 3: Compute averages
-    valid_scores = [s for s in scores if s.overall > 0]
+    valid_scores = [s for s in scores if s.status == "scored"]
     n = len(valid_scores) or 1
 
     result = CalibrationResult(
         profile_name=profile_name,
         timestamp=datetime.now(tz=UTC).isoformat(),
+        context_mode="reviewed_head_inferred_base",
         holdout_count=len(holdouts),
+        scored_count=len(valid_scores),
+        generation_failure_count=sum(s.status == "generation_failed" for s in scores),
+        judge_failure_count=sum(s.status == "judge_failed" for s in scores),
+        snapshot_failure_count=sum(s.status == "snapshot_failed" for s in scores),
         scores=scores,
         avg_issue_detection=round(sum(s.issue_detection for s in valid_scores) / n, 1),
         avg_voice_fidelity=round(sum(s.voice_fidelity for s in valid_scores) / n, 1),

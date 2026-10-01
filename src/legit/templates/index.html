@@ -207,7 +207,7 @@
 </head>
 <body>
   <h1><span>legit</span> &mdash; PR Review Generator</h1>
-  <p class="subtitle">Generate PR reviews in a learned reviewer's voice. Paste a PR URL, pick a profile, get the review.</p>
+  <p class="subtitle">Private preview: AI-simulated reviews informed by public review history. These are not written or endorsed by the named maintainers. Reviews stay here and are not posted to GitHub.</p>
 
   <form id="review-form">
     <label for="pr_url">GitHub PR URL</label>
@@ -220,7 +220,9 @@
       {% endfor %}
     </select>
 
-    <button type="submit" id="submit-btn">Generate Review</button>
+    <button type="submit" id="submit-btn" {% if not profiles %}disabled{% endif %}>Generate Simulated Review</button>
+{% if not profiles %}<p>No personas are available yet.</p>{% endif %}
+{% if unavailable_profiles %}<p>Not available yet: {{ unavailable_profiles | join(", ") }}</p>{% endif %}
   </form>
 
   <!-- Progress panel (hidden until a review starts) -->
@@ -243,7 +245,7 @@
   {% if sample_prs %}
   <div class="samples" id="samples-section">
     <h2>Try a Sample PR</h2>
-    <p class="desc">Click any card to generate a review. Each PR has extensive discussion from the reviewer — open the original PR in another tab to compare.</p>
+    <p class="desc">Click any card to generate a review. Historical examples may overlap the training corpus. Use a new PR to assess usefulness; open the original PR to compare.</p>
 
     <div class="sample-grid">
       {% for s in sample_prs %}
@@ -278,10 +280,10 @@
   {% endif %}
 
   {% if review %}
-  <div class="review-container">
+  <div class="review-container" id="saved-review">
     <div class="review-header">
       <div class="dot"></div>
-      <h2>Review by {{ profile_name }}</h2>
+      <h2>Simulated review inspired by {{ profile_name }}</h2>
     </div>
     {% if pr_url %}
     <div class="compare-bar">
@@ -321,6 +323,13 @@
   </div>
   {% endif %}
 
+  <div id="saved-feedback"></div>
+  <style>
+    .feedback-form textarea { display: block; width: 100%; min-height: 85px;
+      margin: 12px 0; padding: 12px; background: #0d1117; color: #c9d1d9;
+      border: 1px solid #30363d; border-radius: 6px; font: inherit; resize: vertical; }
+    .feedback-form button { margin-right: 8px; margin-bottom: 8px; }
+  </style>
   <script>
   (function() {
     var startTime = null;
@@ -356,7 +365,7 @@
       dot.className = 'dot';
       header.appendChild(dot);
       var h2 = document.createElement('h2');
-      h2.textContent = 'Review by ' + profileName;
+      h2.textContent = 'Simulated review inspired by ' + profileName;
       header.appendChild(h2);
       container.appendChild(header);
 
@@ -443,9 +452,53 @@
       }
 
       output.appendChild(container);
+if (review.review_id) addFeedback(output, review.review_id);
     }
 
+    function addFeedback(output, reviewId) {
+var form = document.createElement('form');
+form.className = 'feedback-form';
+var heading = document.createElement('p');
+heading.textContent = 'How useful was this simulated review?';
+form.appendChild(heading);
+var note = document.createElement('textarea');
+note.placeholder = 'What was useful, wrong, or missing? (optional)';
+note.setAttribute('aria-label', 'Review feedback details');
+note.maxLength = 4000;
+form.appendChild(note);
+var status = document.createElement('p');
+status.setAttribute('role', 'status');
+['useful', 'wrong', 'missed-something'].forEach(function(rating) {
+var button = document.createElement('button');
+button.type = 'button';
+button.textContent = rating.replace('-', ' ');
+button.addEventListener('click', async function() {
+var buttons = form.querySelectorAll('button');
+buttons.forEach(function(b) { b.disabled = true; });
+try {
+var response = await fetch('/feedback', {
+method: 'POST', headers: {'Content-Type': 'application/json'},
+body: JSON.stringify({review_id: reviewId, rating: rating, note: note.value})
+});
+if (!response.ok) throw new Error('Feedback could not be saved');
+status.textContent = 'Thanks. Your feedback was saved.';
+} catch (_) {
+status.textContent = 'Feedback could not be saved. Please try again.';
+buttons.forEach(function(b) { b.disabled = false; });
+}
+});
+form.appendChild(button);
+});
+form.appendChild(status);
+output.appendChild(form);
+}
+{% if review and review.review_id %}
+addFeedback(el('saved-feedback'), {{ review.review_id | tojson }});
+{% endif %}
+
     function startReview(prUrl, profileName) {
+      if (el('saved-review')) el('saved-review').hidden = true;
+      el('saved-feedback').textContent = '';
       // Clear and show progress
       var output = el('review-output');
       while (output.firstChild) output.removeChild(output.firstChild);

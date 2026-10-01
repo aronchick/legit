@@ -1,0 +1,23 @@
+
+Calibrating liggitt against 1 holdout PRs
+
+Exploratory calibration only: the reviewed head is verified but the base is inferred from the current target branch's history. The historical target branch and exact base are unverified; results are not clean release evidence. Mutable prose, summary-only reviews and later rounds are excluded.
+  PR #140634 failed: Missing, edited or mixed-commit first-round ground truth
+
+Results saved to .legit/calibration/liggitt/calibration_2026-09-09T18-08-36.json
+
+Calibration Results: liggitt
+
+  Holdout PRs tested:    1
+  Scored successfully:  0
+  Context:              reviewed_head_inferred_base
+  Failures — snapshot: 1, generation: 0, judge: 0
+  Issue detection:       0.0/10
+  Voice fidelity:        0.0/10
+  Appropriate abstention: 0.0/10
+  False positives:       0.0/10
+  Overall:               0.0/10
+
+Per-PR Scores:
+
+  PR #140634:  0.0/10  (issue=0 voice=0 abstain=0 fp=0)  0 gen / 2 real

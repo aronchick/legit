@@ -6,8 +6,9 @@ import json
 import os
 import re
 import time
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import httpx
 from rich.console import Console
@@ -58,13 +59,16 @@ def _data_dir(owner: str, repo: str, username: str) -> Path:
     return legit_path() / "data" / f"{owner}_{repo}" / username
 
 
-def _load_json(path: Path) -> list | dict:
+def _load_json(path: Path) -> list[Any] | dict[str, Any]:
     if path.exists():
-        return json.loads(path.read_text())
+        payload: object = json.loads(path.read_text())
+        if not isinstance(payload, (list, dict)):
+            raise ValueError(f"Expected JSON list or object in {path}")
+        return payload
     return []
 
 
-def _save_json(path: Path, data: list | dict) -> None:
+def _save_json(path: Path, data: list[Any] | dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, default=str) + "\n")
 
@@ -117,8 +121,8 @@ class GitHubTransport:
         method: str,
         path: str,
         *,
-        params: dict | None = None,
-        headers: dict | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
     ) -> httpx.Response:
         for attempt in range(MAX_RETRIES):
             try:
@@ -170,8 +174,8 @@ class GitHubTransport:
         self,
         path: str,
         *,
-        params: dict | None = None,
-        headers: dict | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
     ) -> httpx.Response:
         return self.request("GET", path, params=params, headers=headers)
 
@@ -181,11 +185,11 @@ class GitHubTransport:
         self,
         path: str,
         *,
-        params: dict | None = None,
+        params: dict[str, Any] | None = None,
         start_page: int = 1,
         per_page: int = PER_PAGE,
         on_page: None | type[None] = None,  # reserved for future callback
-    ) -> tuple[list[dict], bool]:
+    ) -> tuple[list[dict[str, Any]], bool]:
         """Fetch all pages starting from *start_page*.
 
         Returns (items, exhausted).  *exhausted* is True when there are no
@@ -194,14 +198,13 @@ class GitHubTransport:
         p = dict(params or {})
         p["per_page"] = per_page
         p["page"] = start_page
-        items: list[dict] = []
+        items: list[dict[str, Any]] = []
 
         while True:
             resp = self.get(path, params=p)
             page_items = resp.json()
             if not isinstance(page_items, list):
-                # Some endpoints wrap in an object; bail.
-                break
+                raise RuntimeError(f"Expected a list from paginated endpoint {path}")
             items.extend(page_items)
 
             next_url = _next_link(resp)
@@ -260,14 +263,17 @@ def get_token(cfg: GitHubConfig) -> str:
     return token
 
 
-def validate_token(cfg: GitHubConfig) -> dict:
+def validate_token(cfg: GitHubConfig) -> dict[str, Any]:
     """Validate the token and return the authenticated user payload."""
     token = get_token(cfg)
     transport = GitHubTransport(token)
     try:
         resp = transport.get("/user")
         resp.raise_for_status()
-        return resp.json()
+        payload: object = resp.json()
+        if not isinstance(payload, dict):
+            raise ValueError("GitHub user response must be an object")
+        return payload
     finally:
         transport.close()
 
@@ -298,7 +304,12 @@ class GitHubClient:
     # -----------------------------------------------------------------------
 
     def index_activity(
-        self, repo: str, username: str, skip_reviews: bool = False, since: str | None = None
+        self,
+        repo: str,
+        username: str,
+        skip_reviews: bool = False,
+        since: str | None = None,
+        refresh: bool = False,
     ) -> list[IndexEntry]:
         """Index every discoverable activity type for *username* in *repo*.
 
@@ -313,6 +324,10 @@ class GitHubClient:
         index = _load_index(index_path)
         seen: set[str] = {f"{e.type}:{e.id}" for e in index}
         cursors = _load_cursors(cursor_path)
+        if refresh:
+            # Preserve the deduplicated corpus; only reset discovery bookmarks.
+            cursors = CursorFile()
+            _save_cursors(cursor_path, cursors)
 
         def _cursor(key: str) -> CursorState:
             if key not in cursors.cursors:
@@ -434,7 +449,7 @@ class GitHubClient:
             return
 
         # Group by type → bucket files
-        buckets: dict[str, list[dict]] = {}
+        buckets: dict[str, list[dict[str, Any]]] = {}
         for entry in pending:
             bucket_name = self._bucket_for_type(entry.type)
             if bucket_name not in buckets:
@@ -476,7 +491,7 @@ class GitHubClient:
     # Fetch PR data for review
     # -----------------------------------------------------------------------
 
-    def fetch_pr_for_review(self, pr_url: str) -> dict:
+    def fetch_pr_for_review(self, pr_url: str, *, require_public: bool = False) -> dict[str, Any]:
         """Fetch everything needed to review a pull request.
 
         Returns a dict with keys: metadata, diff, files, comments, reviews,
@@ -488,6 +503,13 @@ class GitHubClient:
         # Metadata
         meta_resp = self._transport.get(base)
         metadata = meta_resp.json()
+        if not isinstance(metadata, dict):
+            raise ValueError("GitHub PR metadata must be an object")
+        if require_public:
+            pr_base = metadata.get("base")
+            repository = pr_base.get("repo") if isinstance(pr_base, dict) else None
+            if not isinstance(repository, dict) or repository.get("private") is not False:
+                raise ValueError("This preview only supports public GitHub pull requests")
 
         # Diff (raw text)
         diff_resp = self._transport.get(
@@ -576,7 +598,7 @@ class GitHubClient:
 
         return results
 
-    def fetch_pr_context_files(self, pr_url: str, pr_data: dict) -> dict[str, str]:
+    def fetch_pr_context_files(self, pr_url: str, pr_data: dict[str, Any]) -> dict[str, str]:
         """Fetch full source files for a PR to provide codebase context.
 
         Fetches:
@@ -634,7 +656,7 @@ class GitHubClient:
         repo: str,
         username: str,
         max_prs: int = 50,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Fetch diffs from PRs authored by the reviewer.
 
         Returns a list of dicts with keys: number, title, diff, files.
@@ -649,7 +671,7 @@ class GitHubClient:
         data = resp.json()
         pr_items = data.get("items", [])
 
-        results: list[dict] = []
+        results: list[dict[str, Any]] = []
         for item in pr_items[:max_prs]:
             pr_num = item.get("number")
             if not pr_num:
@@ -692,7 +714,7 @@ class GitHubClient:
         *,
         key: str,
         endpoint: str,
-        params: dict,
+        params: dict[str, Any],
         username: str,
         user_field: str | None,
         entry_type: str,
@@ -722,12 +744,14 @@ class GitHubClient:
                 continue
 
             item_id = self._resolve_field(item, id_field)
+            if item_id is None:
+                raise ValueError(f"Missing {id_field} in GitHub activity")
             uid = f"{entry_type}:{item_id}"
             if uid in seen:
                 continue
 
             created_raw = self._resolve_field(item, created_field)
-            created_at = _parse_dt(created_raw) if created_raw else datetime.now(tz=UTC)
+            created_at = _parse_dt(str(created_raw)) if created_raw else datetime.now(tz=UTC)
             updated_raw = item.get("updated_at")
             updated_at = _parse_dt(updated_raw) if updated_raw else None
 
@@ -756,7 +780,7 @@ class GitHubClient:
         if items:
             last_created = self._resolve_field(items[-1], created_field)
             if last_created:
-                cursor.last_timestamp = _parse_dt(last_created)
+                cursor.last_timestamp = _parse_dt(str(last_created))
         # Advance page bookmark for next resumption
         if not exhausted:
             total_pages = len(items) // cursor.per_page
@@ -786,30 +810,52 @@ class GitHubClient:
 
         console.print("Indexing [bold]pr_comments[/] via search API…")
 
-        # Search for PRs where this user commented
-        q = f"commenter:{username} repo:{owner}/{repo} type:pr"
+        # Search may return at most 1,000 matches. Partition by PR creation
+        # date, while filtering by update date so new comments on old PRs count.
+        query = f"commenter:{username} repo:{owner}/{repo} type:pr"
         if since:
-            q += f" created:>{since}"
+            query += f" updated:>={since}"
 
-        pr_numbers: list[int] = []
-        page = cursor.page
-        while True:
-            resp = self._transport.get(
-                "/search/issues",
-                params={"q": q, "per_page": 100, "page": page, "sort": "created", "order": "asc"},
-            )
-            data = resp.json()
-            items = data.get("items", [])
-            if not items:
-                break
-            for item in items:
-                pr_num = item.get("number")
-                if pr_num:
-                    pr_numbers.append(pr_num)
-            page += 1
-            total = data.get("total_count", 0)
-            if page * 100 >= min(total, 1000):  # Search API caps at 1000 results
-                break
+        def discover(start: date, end: date) -> list[int]:
+            q = f"{query} created:{start.isoformat()}..{end.isoformat()}"
+            numbers: list[int] = []
+            page = 1
+            while True:
+                data = self._transport.get(
+                    "/search/issues",
+                    params={
+                        "q": q,
+                        "per_page": 100,
+                        "page": page,
+                        "sort": "created",
+                        "order": "asc",
+                    },
+                ).json()
+                if not isinstance(data, dict) or "total_count" not in data:
+                    raise RuntimeError("GitHub search returned an invalid response")
+                if data.get("incomplete_results"):
+                    raise RuntimeError("GitHub search returned incomplete results; retry fetch")
+                total = data["total_count"]
+                if total > 1000:
+                    if start == end:
+                        raise RuntimeError(
+                            f"GitHub search exceeds 1000 PRs on {start}; corpus is incomplete"
+                        )
+                    middle = start + (end - start) // 2
+                    return discover(start, middle) + discover(middle + timedelta(days=1), end)
+                items = data.get("items", [])
+                if not isinstance(items, list) or any(not item.get("number") for item in items):
+                    raise RuntimeError("GitHub search returned invalid PR items")
+                numbers.extend(item["number"] for item in items)
+                if page * 100 >= total:
+                    if len(numbers) < total:
+                        raise RuntimeError("GitHub search ended before all PRs were returned")
+                    return numbers
+                if len(items) < 100:
+                    raise RuntimeError("GitHub search returned a partial page before completion")
+                page += 1
+
+        pr_numbers = list(dict.fromkeys(discover(date(2008, 1, 1), datetime.now(UTC).date())))
 
         console.print(f"  Found {len(pr_numbers)} PRs with comments by {username}")
 
@@ -819,21 +865,24 @@ class GitHubClient:
             if i > 0 and i % 50 == 0:
                 console.print(f"  Processing PR comments: {i}/{len(pr_numbers)}…")
             try:
-                comments_resp = self._transport.get(
+                comments, exhausted = self._transport.get_paginated(
                     f"/repos/{owner}/{repo}/pulls/{pr_num}/comments",
                 )
-                comments = comments_resp.json()
-                if not isinstance(comments, list):
-                    continue
+                if not exhausted:
+                    raise RuntimeError(f"Incomplete comments for PR #{pr_num}")
                 for comment in comments:
                     if (comment.get("user") or {}).get("login", "").lower() != username.lower():
                         continue
                     cid = comment.get("id")
+                    if not isinstance(cid, (str, int)):
+                        raise ValueError("GitHub comment is missing its ID")
                     uid = f"pr_comment:{cid}"
                     if uid in seen:
                         continue
                     created_raw = comment.get("created_at")
-                    created_at = _parse_dt(created_raw) if created_raw else datetime.now(tz=UTC)
+                    created_at = (
+                        _parse_dt(str(created_raw)) if created_raw else datetime.now(tz=UTC)
+                    )
                     entry = IndexEntry(
                         id=cid,
                         type="pr_comment",
@@ -848,8 +897,7 @@ class GitHubClient:
                     seen.add(uid)
                     added += 1
             except Exception as exc:
-                console.print(f"[dim]  Skipped PR #{pr_num}: {exc}[/]")
-                continue
+                raise RuntimeError(f"Could not index comments for PR #{pr_num}: {exc}") from exc
 
         cursor.complete = True
         console.print(f"  pr_comments (via search): +{added} new entries")
@@ -904,7 +952,7 @@ class GitHubClient:
                     continue
 
                 created_raw = rev.get("submitted_at") or rev.get("created_at")
-                created_at = _parse_dt(created_raw) if created_raw else datetime.now(tz=UTC)
+                created_at = _parse_dt(str(created_raw)) if created_raw else datetime.now(tz=UTC)
 
                 entry = IndexEntry(
                     id=rid,
@@ -928,7 +976,7 @@ class GitHubClient:
     # Internal: linked-issue resolution
     # -----------------------------------------------------------------------
 
-    def _resolve_linked_issues(self, owner: str, repo: str, body: str) -> list[dict]:
+    def _resolve_linked_issues(self, owner: str, repo: str, body: str) -> list[dict[str, Any]]:
         """Pull full issue data for every #NNN reference in the PR body."""
         refs = set(re.findall(r"#(\d+)", body))
         issues = []
@@ -946,26 +994,26 @@ class GitHubClient:
     # -----------------------------------------------------------------------
 
     @staticmethod
-    def _resolve_field(item: dict, dotted_key: str) -> str | int | None:
+    def _resolve_field(item: dict[str, Any], dotted_key: str) -> str | int | None:
         """Resolve 'user.login' style dotted keys."""
         parts = dotted_key.split(".")
-        obj: dict | str | int | None = item
+        obj: dict[str, Any] | str | int | None = item
         for p in parts:
             if isinstance(obj, dict):
                 obj = obj.get(p)
             else:
                 return None
-        return obj  # type: ignore[return-value]
+        return obj if isinstance(obj, (str, int)) else None
 
     @staticmethod
-    def _field_matches(item: dict, dotted_key: str, value: str) -> bool:
+    def _field_matches(item: dict[str, Any], dotted_key: str, value: str) -> bool:
         resolved = GitHubClient._resolve_field(item, dotted_key)
         if isinstance(resolved, str):
             return resolved.lower() == value.lower()
         return False
 
     @staticmethod
-    def _extract_pr_number(item: dict) -> int | None:
+    def _extract_pr_number(item: dict[str, Any]) -> int | None:
         """Extract PR number from a pull-request review comment."""
         pr_url = item.get("pull_request_url", "")
         if pr_url:

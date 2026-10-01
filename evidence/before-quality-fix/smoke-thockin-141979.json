@@ -1,0 +1,43 @@
+{
+  "review_id": "0f3fa359-425d-4556-bdaa-118d96250087",
+  "persona": "thockin",
+  "pr_url": "https://github.com/kubernetes/kubernetes/pull/141979",
+  "output": {
+    "summary": "This is mostly mechanical and looks right to me.  A couple of questions, mostly about what happens the NEXT TIME (when the gate is actually removed) and about regularity between the various test loops -- some pin the emulation version for every case, some only for the legacy cases.  Nothing here changes the API contract, so I am fine with this landing once those are answered.  /lgtm from the sig-network/validation side; the compatibility_lifecycle files need feature-approvers anyway.",
+    "inline_comments": [
+      {
+        "file": "pkg/apis/core/validation/validation_test.go",
+        "hunk_header": "@@ -11075,6 +11075,7 @@ func TestValidatePodDNSConfig(t *testing.T) {",
+        "diff_snippet": "+\t\t\tfeaturegatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultFeatureGate, version.MustParse(\"1.37\"))\n \t\t\tfeaturegatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.StrictIPCIDRValidation, !tc.legacyIPs)",
+        "comment": "This pins EVERY case to 1.37, including the strict ones, whereas `TestValidateServiceCreate` below only drops to the older emulation version when `tc.legacyIPs`.  Is there a reason for the difference?  I'd rather see one pattern -- only wind back the clock for the legacy cases, so the strict cases prove the behavior at the *current* version (where the gate is locked).  Same comment applies to TestPodIPsValidation, TestHostIPsValidation, TestValidateLoadBalancerStatus, the EndpointSlice test, and TestValidateIngressStatusUpdate.",
+        "confidence": 0.7,
+        "side": "addition"
+      },
+      {
+        "file": "test/integration/apiserver/cve_2021_29923_test.go",
+        "hunk_header": "@@ -41,6 +42,7 @@ func gvr(g, v, r string) schema.GroupVersionResource {",
+        "diff_snippet": "+\tfeaturegatetesting.SetFeatureGateEmulationVersionDuringTest(t, utilfeature.DefaultFeatureGate, version.MustParse(\"1.37\"))\n \tfeaturegatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.StrictIPCIDRValidation, false)",
+        "comment": "So the whole integration \"canary\" now only proves the OLD behavior under emulation.  Shouldn't there be the other side, too -- the same objects at the current version, proving that leading zeros are now REJECTED end-to-end through the apiserver?  That's the thing GA is actually asserting, and unit tests on ValidateX() don't prove the wiring.  (I'm also not sure this test earns its name any more once the gate is gone -- but that's for later.)",
+        "confidence": 0.65,
+        "side": "addition"
+      },
+      {
+        "file": "pkg/features/kube_features.go",
+        "hunk_header": "@@ -2139,6 +2139,7 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate",
+        "diff_snippet": "+\t\t{Version: version.MustParse(\"1.38\"), Default: true, PreRelease: featuregate.GA, LockToDefault: true},",
+        "comment": "LGTM for the gate itself.  Just confirming: locking in the same release as GA (rather than GA then lock next release) is intentional?  It's fine by me -- the beta default has been true since 1.36 -- I just want to make sure it was a decision and not an accident.",
+        "confidence": 0.5,
+        "side": "addition"
+      }
+    ],
+    "abstained_files": [
+      "test/compatibility_lifecycle/reference/feature_list.md",
+      "test/compatibility_lifecycle/reference/versioned_feature_list.yaml"
+    ],
+    "abstention_reason": "Generated files (hack/update-featuregates.sh); nothing to review beyond them matching kube_features.go, which they do."
+  },
+  "handler_status": 200,
+  "synthetic_feedback_readback": true,
+  "synthetic_feedback_removed": true,
+  "human_quality_verified": false
+}

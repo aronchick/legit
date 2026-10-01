@@ -321,6 +321,12 @@ class TestBuildProfile:
         _populate_data_dir(legit_dir, items)
         config = _make_config(legit_dir)
 
+        from legit.profile import _load_all_items, _prepare_map_cache
+
+        _prepare_map_cache(
+            config, config.profiles[0], _load_all_items(config.profiles[0]), None, False
+        )
+
         # Pre-populate cache for the single chunk
         obs = ChunkObservation(
             date_range_start="2025-01-01",

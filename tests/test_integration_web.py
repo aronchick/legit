@@ -138,9 +138,15 @@ SAMPLE_REVIEW = ReviewOutput(
         InlineComment(
             file="pkg/auth/middleware.go",
             hunk_header="@@ -15,6 +15,12 @@",
-            diff_snippet='+    if claims == nil {\n+        http.Error(w, "unauthorized", http.StatusUnauthorized)',
+            diff_snippet=(
+                "+    if claims == nil {\n"
+                '+        http.Error(w, "unauthorized", http.StatusUnauthorized)'
+            ),
             side="addition",
-            comment="nit: consider logging the unauthorized attempt before returning — helps with debugging auth issues in production.",
+            comment=(
+                "nit: consider logging the unauthorized attempt before returning — "
+                "helps with debugging auth issues in production."
+            ),
             confidence=0.82,
         ),
         InlineComment(
@@ -148,7 +154,10 @@ SAMPLE_REVIEW = ReviewOutput(
             hunk_header="@@ -15,6 +15,12 @@",
             diff_snippet='+    if claims.UserID == "" {',
             side="addition",
-            comment="Should we also check for whitespace-only UserIDs? strings.TrimSpace might be safer.",
+            comment=(
+                "Should we also check for whitespace-only UserIDs? "
+                "strings.TrimSpace might be safer."
+            ),
             confidence=0.65,
         ),
     ],
@@ -159,12 +168,14 @@ SAMPLE_REVIEW = ReviewOutput(
 SAMPLE_CRITIQUE = CritiqueOutput(
     assessments=[
         CritiqueItem(
+            technical_evidence="supported",
             comment_index=0,
             would_reviewer_leave_this="yes",
             phrasing_sounds_like_them="yes",
             already_covered="no",
         ),
         CritiqueItem(
+            technical_evidence="supported",
             comment_index=1,
             would_reviewer_leave_this="probably",
             phrasing_sounds_like_them="close",
@@ -243,7 +254,8 @@ class TestReviewEndpoint:
         assert resp.status_code == 200
         html = resp.text
         # Review summary should appear
-        assert "Good defensive additions" in html
+        assert "2 comments to consider below." in html
+        assert "Good defensive additions" not in html
         # Inline comments should appear
         assert "nit: consider logging" in html
         # Confidence badges should appear
@@ -281,6 +293,7 @@ class TestReviewEndpoint:
         critique = CritiqueOutput(
             assessments=[
                 CritiqueItem(
+                    technical_evidence="supported",
                     comment_index=0,
                     would_reviewer_leave_this="no",
                     phrasing_sounds_like_them="no",
@@ -300,7 +313,7 @@ class TestReviewEndpoint:
         )
 
         assert resp.status_code == 200
-        assert "LGTM" in resp.text
+        assert "No inline findings retained; this is not an approval." in resp.text
 
     @patch("legit.review.retrieve", return_value=[])
     @patch("legit.review.run_inference")
@@ -340,6 +353,7 @@ class TestReviewEndpoint:
         critique = CritiqueOutput(
             assessments=[
                 CritiqueItem(
+                    technical_evidence="supported",
                     comment_index=0,
                     would_reviewer_leave_this="yes",
                     phrasing_sounds_like_them="yes",
@@ -396,7 +410,8 @@ class TestReviewErrors:
         )
 
         assert resp.status_code == 200  # Page renders, error shown inline
-        assert "rate limited" in resp.text.lower() or "403" in resp.text
+        assert "Unable to generate this review" in resp.text
+        assert "Traceback" not in resp.text
 
     @patch("legit.review.retrieve", return_value=[])
     @patch("legit.review.run_inference")
@@ -426,7 +441,8 @@ class TestReviewErrors:
         )
 
         assert resp.status_code == 200
-        assert "timeout" in resp.text.lower() or "Model provider" in resp.text
+        assert "Unable to generate this review" in resp.text
+        assert "Model provider timeout" not in resp.text
 
     def test_missing_profile(self, _legit_env: Path):
         """POST with a profile that doesn't exist should show an error."""
@@ -438,8 +454,8 @@ class TestReviewErrors:
                 "profile_name": "nonexistent-reviewer",
             },
         )
-        assert resp.status_code == 200
-        assert "not found" in resp.text.lower() or "error" in resp.text.lower()
+        assert resp.status_code == 400
+        assert "not available" in resp.text.lower()
 
     @patch("legit.review.retrieve", return_value=[])
     @patch("legit.review.run_inference")
@@ -462,8 +478,8 @@ class TestReviewErrors:
             "/review",
             data={"pr_url": "not-a-url", "profile_name": "sample-reviewer"},
         )
-        assert resp.status_code == 200
-        assert "invalid" in resp.text.lower() or "error" in resp.text.lower()
+        assert resp.status_code == 400
+        assert "valid GitHub" in resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -547,6 +563,7 @@ class TestMultiFilePR:
         for i in range(6):
             assessments.append(
                 CritiqueItem(
+                    technical_evidence="supported",
                     comment_index=i,
                     would_reviewer_leave_this="yes" if i < 4 else "no",
                     phrasing_sounds_like_them="yes",
@@ -568,6 +585,6 @@ class TestMultiFilePR:
 
         assert resp.status_code == 200
         html = resp.text
-        assert "refactor looks consistent" in html.lower() or "The refactor" in html
+        assert "4 comments to consider below." in html
         # max_comments=5 in config, 4 passed critique, all above 0.3 threshold
         assert "module0" in html.lower() or "Module 0" in html

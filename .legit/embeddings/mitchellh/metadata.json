@@ -1,0 +1,1262 @@
+[
+  {
+    "comment_text": "I am on mobile but I\u2019m pretty sure we can\u2019t just add this to this enum. The enum is based on hardware key codes and also has to have updates in the Kitty keycode table and Hardware keycode table and I don\u2019t think plus is considered a standard keycode\u2026 I\u2019ll have to look but I copied these from Chromium\u2019s source and it has no concept of plus.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2023-09-14T15:29:39Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 451
+  },
+  {
+    "comment_text": "Okay, I took a look and Kitty also supports `plus`. For standard US layout keyboards this does nothing (it's unmappable). For German and other layouts, hopefully this makes `plus` natively mappable. Please let me know if this doesn't work.\r\n\r\n@Yinameah sorry for months late here. I didn't (and still don't) fully understand the ramifications of this. If this ends up introducing other problems I may revert but hopefully this just silently works...",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2024-01-22T05:11:45Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 451
+  },
+  {
+    "comment_text": "We may want to add default bindings for `ctrl/super+plus` to increase font size too, but I'll defer that to another PR and some feedback. Thoughts @LordMZTE ?",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2024-01-22T05:12:20Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 451
+  },
+  {
+    "comment_text": "I don't care for this PR, but as a general statement, I'd say the _source_ of apprt notifications is usually left unspecified, because if alternate methods of supplying it come about we'll adopt those too.\n\nIn this case for example, I'd say for apprt authors there doesn't have to be any awareness these come from OSC 133.",
+    "file_path": "include/ghostty.h",
+    "code_context": "@@ -735,9 +735,22 @@ typedef struct {\n \n // apprt.action.CommandFinished.C\n typedef struct {\n-  // -1 if no exit code was reported, otherwise 0-255\n+  // The command line, as reported by OSC 133;C, or null if the command line",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2025-10-11T21:45:42Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 9134
+  },
+  {
+    "comment_text": "Bikeshed, I'd prefer something less abbreviated here, `command_line` is totally fine.",
+    "file_path": "src/apprt/action.zig",
+    "code_context": "@@ -747,17 +747,49 @@ pub const CloseTabMode = enum(c_int) {\n };\n \n pub const CommandFinished = struct {\n+    /// The command line, as reported by OSC 133;C, or null if the command line\n+    /// is unknown.\n+    cmdline: ?[:0]const u8,",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2025-10-11T21:46:33Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 9134
+  },
+  {
+    "comment_text": "Please rebase since the other merge. \ud83d\ude04",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2025-11-07T22:26:18Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 9510
+  },
+  {
+    "comment_text": "Going to close this then since it didn't work. Womp",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2025-11-07T23:16:47Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 9404
+  },
+  {
+    "comment_text": "This is going to require a rebase. Lots merged for the context menu configuration.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2025-12-11T05:11:21Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 9784
+  },
+  {
+    "comment_text": "I got the rebase in. Still need to review and clean up stuff to make this possible to merge.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2025-12-11T15:17:18Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 9784
+  },
+  {
+    "comment_text": "Ahhhhh there\u2019s a lot I wanted redone here. Ehhhhhhh. I guess we can live with this for now but we\u2019re going to have to redo this later. I\u2019ll re review and see\u2026 sorry I should\u2019ve blocked it with red",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-01-07T14:33:08Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 9158
+  },
+  {
+    "comment_text": "> Ahhhhh there\u2019s a lot I wanted redone here. Ehhhhhhh. I guess we can live with this for now but we\u2019re going to have to redo this later. I\u2019ll re review and see\u2026 sorry I should\u2019ve blocked it with red\r\n\r\nYeah this is good enough to let it be for now. We'll flip this upside down eventually though!",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-01-07T14:40:52Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 9158
+  },
+  {
+    "comment_text": "Ran CI with some real failures!",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-01-16T23:35:22Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10332
+  },
+  {
+    "comment_text": "I use a Linux VM on Mac to great success. Running tests you can do with any provider but running the GUI requires VMware due to OpenGL 4.3",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-01-17T14:40:28Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10332
+  },
+  {
+    "comment_text": "Thanks for the follow up. \r\n\r\n> could we use coretext_freetype on macos-freetype instead of freetype?\r\n\r\nFor the tests? Yes we could. I think its just more important to keep free type building on macOS for testing, I don't think no-discovery is the important test part.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-01-27T04:17:19Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10332
+  },
+  {
+    "comment_text": "Btw, haven't converted it to an issue yet, but I approve that discussion so feel free to merge this for GTK.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-02-05T14:48:30Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10575
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-02-15T23:11:57Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10619
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-02-20T17:58:12Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10863
+  },
+  {
+    "comment_text": "Sure seems safe.",
+    "file_path": "macos/Sources/Ghostty/Ghostty.App.swift",
+    "code_context": "@@ -694,9 +695,12 @@ extension Ghostty {\n             if let candidate = URL(string: action.url), candidate.scheme != nil {\n                 url = candidate\n             } else {\n-                url = URL(filePath: action.url)\n+                // Expand ~ to the user's home directory so that file paths\n+                // like ~/Documents/file.txt resolve correctly.\n+                let expandedPath = NSString(string: action.url).expandingTildeInPath",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-02-21T04:35:42Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10863
+  },
+  {
+    "comment_text": "This looks a lot better visually, I haven't run it yet. cc @qwerasd205 I'll look more deeply soon.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-02-24T17:57:22Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10994
+  },
+  {
+    "comment_text": "There are hints of good stuff in here. If you want a vouch request and are willing to be receptive to feedback, I'd be open to it.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-02-24T18:03:06Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10983
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-02-27T15:45:43Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11057
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-02-28T03:52:34Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11070
+  },
+  {
+    "comment_text": "Thanks everyone!",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-03T15:17:46Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11144
+  },
+  {
+    "comment_text": "I'm fine with this. Our ability to control sizing and so on on GTK4 seems extremely limited so I think even if we're off a bit this is the best we can do.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-03T16:13:11Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10459
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-03T22:02:27Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11154
+  },
+  {
+    "comment_text": "This is now possible with our split dragging functionality!",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-04T04:20:03Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 9457
+  },
+  {
+    "comment_text": "Thanks For both!",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-04T19:09:15Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11166
+  },
+  {
+    "comment_text": "I still don't like this, is this really necessary? Why can't the GTK side cone the config and override this on the config structure itself? That's what apprt/embedded (for macOS) does.",
+    "file_path": "src/Surface.zig",
+    "code_context": "@@ -463,6 +463,12 @@ pub fn init(\n     app: *App,\n     rt_app: *apprt.runtime.App,\n     rt_surface: *apprt.runtime.Surface,\n+    overrides: struct {",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-04T19:14:12Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10809
+  },
+  {
+    "comment_text": "I'd toss all this memory management and create an arena for all this. The config structures don't really expect free-ability (although you added it for Command). But there's enough happening here I'd just grab an arena and free it at once.",
+    "file_path": "src/apprt/gtk/class/application.zig",
+    "code_context": "@@ -1669,17 +1671,37 @@ pub const Application = extern struct {\n     ) callconv(.c) void {\n         log.debug(\"received new window action\", .{});\n \n-        parameter: {\n+        const alloc = Application.default().allocator();\n+\n+        var working_directory: ?[:0]const u8 = null;\n+        defer if (working_directory) |wd| alloc.free(wd);\n+\n+        var title: ?[:0]const u8 = null;\n+        defer if (title) |t| alloc.free(t);\n+\n+        var command: ?configpkg.Command = null;\n+        defer if (command) |c| c.deinit(alloc);\n+\n+        var args: std.ArrayList([:0]const u8) = .empty;\n+        defer {\n+            for (args.items) |arg| alloc.free(arg);\n+            args.deinit(alloc);\n+        }",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-04T21:39:14Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 10809
+  },
+  {
+    "comment_text": "I don't think terminfo building should be part of the `source-tarball` job. I think it should probably be its own job.",
+    "file_path": ".github/workflows/release-tag.yml",
+    "code_context": "@@ -102,8 +102,10 @@ jobs:\n         run: |\n           rm -rf zig-out/dist\n           nix develop -c zig build distcheck\n+          nix develop -c zig build terminfo",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-05T14:48:48Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11190
+  },
+  {
+    "comment_text": "No logic changes, going to put it in 1.3",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-05T20:59:03Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11195
+  },
+  {
+    "comment_text": "There is more AppleScript stuff here, for reference: https://github.com/ghostty-org/ghostty/discussions/10201",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-05T21:58:10Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 9249
+  },
+  {
+    "comment_text": "Replaced with #11208",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-06T23:04:44Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 9249
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-07T14:28:56Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11209
+  },
+  {
+    "comment_text": "cc @kenvandine",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-07T14:29:12Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11209
+  },
+  {
+    "comment_text": "We can just expose a getter for this instead of using getProperty, we can do this all via Zig without dealing with the GObject system (see other getters, even when they do both the Zig-only one is exposed). For things like primitives it's usually much easier and more ergonomic. :)",
+    "file_path": "src/apprt/gtk/class/surface.zig",
+    "code_context": "@@ -822,11 +822,19 @@ pub const Surface = extern struct {\n     /// Callback used to determine whether unfocused-split-fill / unfocused-split-opacity\n     /// should be applied to the surface\n     fn closureShouldUnfocusedSplitBeShown(\n-        _: *Self,\n+        self: *Self,\n         focused: c_int,\n         is_split: c_int,\n     ) callconv(.c) c_int {\n-        return @intFromBool(focused == 0 and is_split != 0);\n+        const priv = self.private();\n+        var val = gobject.ext.Value.new(bool);\n+        defer val.unset();\n+        gobject.Object.getProperty(",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-08T14:40:01Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11224
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-08T14:59:11Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11231
+  },
+  {
+    "comment_text": "Wow this is like an old writergate bug I'm shocked it lived this long.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-08T14:59:44Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11231
+  },
+  {
+    "comment_text": "I have to check in more detail, but on first pass this doesn't seem right. Why not change windows to be on the arena, possibly layout too so it's not in its own arena but using the shared arena?\n\nPlease explain your thinking, not the agents.",
+    "file_path": "src/terminal/tmux/viewer.zig",
+    "code_context": "@@ -894,8 +894,11 @@ pub const Viewer = struct {\n         }\n \n         // Setup our windows action so the caller can process GUI\n-        // window changes.\n-        try actions.append(arena_alloc, .{ .windows = windows.items });\n+        // window changes. We must dupe into the arena because `windows`\n+        // is a local ArrayList whose backing memory is freed by the\n+        // defer above when this function returns.\n+        const arena_windows = try arena_alloc.dupe(Window, windows.items);\n+        try actions.append(arena_alloc, .{ .windows = arena_windows });",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-08T20:05:23Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11213
+  },
+  {
+    "comment_text": "Please rebase",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-09T15:22:08Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11262
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-10T14:14:28Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11320
+  },
+  {
+    "comment_text": "Vouched because this looks clean.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-10T14:15:46Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11320
+  },
+  {
+    "comment_text": "We should gate this at the apprt, not in the core. We still want progress reports to be sent to the apprt, but the apprt should respect the style of how it is shown.",
+    "file_path": "src/Surface.zig",
+    "code_context": "@@ -1096,6 +1098,11 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {\n         },\n \n         .progress_report => |v| {\n+            if (!self.config.progress_style) {",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-10T16:00:34Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11289
+  },
+  {
+    "comment_text": "Can you add a comment above the commented out that explains why they're commented out? Other than that its fine.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-10T16:01:22Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11285
+  },
+  {
+    "comment_text": "I think this fixes #11319 too.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-10T16:03:34Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11276
+  },
+  {
+    "comment_text": "> and scrolls if you're lucky enough.\r\n\r\nalso lol.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-10T16:06:14Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11276
+  },
+  {
+    "comment_text": "Rebase please!",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-10T17:58:57Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11263
+  },
+  {
+    "comment_text": "We should probably move this to below the timer removal and also ensure that the progress bar gets removed too (if it might exist). That way this behaves better with live config reload.",
+    "file_path": "src/apprt/gtk/class/surface.zig",
+    "code_context": "@@ -1004,6 +1003,10 @@ pub const Surface = extern struct {\n     ) void {\n         const priv = self.private();\n \n+        if (priv.config) |config| {\n+            if (!config.get().@\"progress-style\") return;",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-11T02:34:08Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11289
+  },
+  {
+    "comment_text": "Sorry this isn't right, the handling is in macOS/",
+    "file_path": "src/apprt/embedded.zig",
+    "code_context": "@@ -304,6 +303,10 @@ pub const App = struct {\n                 },\n             },\n \n+            .progress_report => {\n+                if (!self.config.@\"progress-style\") return;\n+            },",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-11T02:34:24Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11289
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-11T14:17:27Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11365
+  },
+  {
+    "comment_text": "Vouching, cause this mostly looks good and it tests well. I'm going to keep poking around.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-11T14:19:32Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11365
+  },
+  {
+    "comment_text": "Merged manually since for some reason can't push to your branch. Thank you!",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-11T14:25:24Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11365
+  },
+  {
+    "comment_text": "need a lint!",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-11T14:28:40Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11363
+  },
+  {
+    "comment_text": "Is it correct here to drop all our redraw/cl/aid params? Cause this is only for redraw?",
+    "file_path": "src/shell-integration/bash/ghostty.bash",
+    "code_context": "@@ -195,11 +195,11 @@ function __ghostty_precmd() {\n     _GHOSTTY_SAVE_PS1=\"$PS1\"\n     _GHOSTTY_SAVE_PS2=\"$PS2\"\n \n-    # Marks. We need to do fresh line (A) at the beginning of the prompt\n-    # since if the cursor is not at the beginning of a line, the terminal\n-    # will emit a newline.\n-    PS1='\\[\\e]133;A;redraw=last;cl=line;aid='\"$BASHPID\"'\\a\\]'$PS1'\\[\\e]133;B\\a\\]'\n-    PS2='\\[\\e]133;A;k=s\\a\\]'$PS2'\\[\\e]133;B\\a\\]'\n+    # Use 133;P (not 133;A) inside PS1 to avoid fresh-line behavior on\n+    # readline redraws (e.g., vi mode switches, Ctrl-L). The initial\n+    # 133;A with fresh-line is emitted once via printf below.\n+    PS1='\\[\\e]133;P;k=i\\a\\]'$PS1'\\[\\e]133;B\\a\\]'",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-11T16:51:06Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11377
+  },
+  {
+    "comment_text": "Yep just checking. Okay!",
+    "file_path": "src/shell-integration/bash/ghostty.bash",
+    "code_context": "@@ -195,11 +195,11 @@ function __ghostty_precmd() {\n     _GHOSTTY_SAVE_PS1=\"$PS1\"\n     _GHOSTTY_SAVE_PS2=\"$PS2\"\n \n-    # Marks. We need to do fresh line (A) at the beginning of the prompt\n-    # since if the cursor is not at the beginning of a line, the terminal\n-    # will emit a newline.\n-    PS1='\\[\\e]133;A;redraw=last;cl=line;aid='\"$BASHPID\"'\\a\\]'$PS1'\\[\\e]133;B\\a\\]'\n-    PS2='\\[\\e]133;A;k=s\\a\\]'$PS2'\\[\\e]133;B\\a\\]'\n+    # Use 133;P (not 133;A) inside PS1 to avoid fresh-line behavior on\n+    # readline redraws (e.g., vi mode switches, Ctrl-L). The initial\n+    # 133;A with fresh-line is emitted once via printf below.\n+    PS1='\\[\\e]133;P;k=i\\a\\]'$PS1'\\[\\e]133;B\\a\\]'",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-11T16:54:29Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11377
+  },
+  {
+    "comment_text": "Rebase please :)",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-12T14:14:32Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11421
+  },
+  {
+    "comment_text": "I don't like pre-commit hooks. It slows down 100% of commits for the low % of people that can't mentally remember to run these on their own, even when they're filtered. I'd be fine with a standalone `lint.nu` script or something that people can choose to run if they want.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-13T15:30:56Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11456
+  },
+  {
+    "comment_text": "I know, but in that case I'd prefer a script.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-13T15:35:16Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11456
+  },
+  {
+    "comment_text": "Going to push this to a 1.3.2 just so I can study it more and give it time to bake, but I'm fine with the default change.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-13T15:46:35Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11449
+  },
+  {
+    "comment_text": "Looks good. Let's let this bake in tip and see what pops out!",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-13T17:16:58Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11449
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-14T15:17:58Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11491
+  },
+  {
+    "comment_text": "Good material for a fork. No thanks for main.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-15T04:35:49Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11508
+  },
+  {
+    "comment_text": "Add a note on equal \"Available since: 1.4.0\"",
+    "file_path": "src/config/Config.zig",
+    "code_context": "@@ -1963,7 +1963,16 @@ keybind: Keybinds = .{},\n /// apply. The other padding is applied first and may affect how many grid cells\n /// actually exist, and this is applied last in order to balance the padding\n /// given a certain viewport size and grid cell size.\n-@\"window-padding-balance\": bool = false,\n+///\n+/// Valid values are:\n+///\n+/// * `false` - No balancing is applied.\n+/// * `true` - Balance the padding, but cap the top padding to avoid\n+///   excessive space above the first row. Any excess is shifted to the\n+///   bottom.\n+/// * `equal` - Balance the padding equally on all sides without any\n+///   top-padding cap.",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-15T04:37:40Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11491
+  },
+  {
+    "comment_text": "> but it should be the default behavior in the core impl following the standard and for non ghostty use cases (libghostty).\r\n\r\nI think either value for libghostty is fine, because libghostty doesn't dictate cursor blinking anyways. Right?",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-15T04:40:31Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11484
+  },
+  {
+    "comment_text": "This isn't right. We already have an option to modify whitespace matching. triple-click select should probably use that. If I'm wrong in that assessment please let me know.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-15T04:56:22Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11503
+  },
+  {
+    "comment_text": "We don't really do this comment marking style anywhere in this codebase. I'm not generally against it but stylistically its not idiomatic within this repo so I'd say we drop it.",
+    "file_path": "src/apprt/gtk/winproto/wayland/Globals.zig",
+    "code_context": "@@ -0,0 +1,234 @@\n+const Globals = @This();\n+\n+const std = @import(\"std\");\n+const Allocator = std.mem.Allocator;\n+\n+const wayland = @import(\"wayland\");\n+const wl = wayland.client.wl;\n+const kde = wayland.client.kde;\n+const org = wayland.client.org;\n+const xdg = wayland.client.xdg;\n+\n+const log = std.log.scoped(.winproto_wayland_globals);\n+\n+alloc: Allocator,\n+state: State,\n+map: std.EnumMap(Tag, Binding),\n+\n+/// Used in the initial roundtrip to determine whether more\n+/// roundtrips are required to fetch the initial state.\n+needs_roundtrip: bool = false,\n+\n+const Binding = struct {\n+    // All globals can be casted into a wl.Proxy object.\n+    proxy: *wl.Proxy,\n+    name: u32,\n+};\n+\n+pub const Tag = enum {\n+    kde_blur_manager,\n+    kde_decoration_manager,\n+    kde_slide_manager,\n+    kde_output_order,\n+    xdg_activation,\n+\n+    fn Type(comptime self: Tag) type {\n+        return switch (self) {\n+            .kde_blur_manager => org.KdeKwinBlurManager,\n+            .kde_decoration_manager => org.KdeKwinServerDecorationManager,\n+            .kde_slide_manager => org.KdeKwinSlideManager,\n+            .kde_output_order => kde.OutputOrderV1,\n+            .xdg_activation => xdg.ActivationV1,\n+        };\n+    }\n+};\n+\n+pub const State = struct {\n+    /// Connector name of the primary output (e.g., \"DP-1\") as reported\n+    /// by kde_output_order_v1. The first output in each priority list\n+    /// is the primary.\n+    primary_output_name: ?[:0]const u8 = null,\n+\n+    /// Tracks the output order event cycle. Set to true after a `done`\n+    /// event so the next `output` event is captured as the new primary.\n+    /// Initialized to true so the first event after binding is captured.\n+    output_order_done: bool = true,\n+\n+    default_deco_mode: ?org.KdeKwinServerDecorationManager.Mode = null,\n+\n+    /// Reset cached state derived from kde_output_order_v1.\n+    fn resetOutputOrder(self: *State, alloc: Allocator) void {\n+        if (self.primary_output_name) |name| alloc.free(name);\n+        self.primary_output_name = null;\n+        self.output_order_done = true;\n+    }\n+};\n+\n+pub fn init(alloc: Allocator, display: *wl.Display) !*Globals {\n+    // We need to allocate here since the listener\n+    // expects a stable memory address.\n+    const self = try alloc.create(Globals);\n+    self.* = .{\n+        .alloc = alloc,\n+        .state = .{},\n+        .map = .{},\n+    };\n+\n+    const registry = try display.getRegistry();\n+    registry.setListener(*Globals, registryListener, self);\n+    if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;\n+\n+    // Do another roundtrip to process events emitted by globals we bound\n+    // during registry discovery (e.g. default decoration mode, output\n+    // order). Listeners are installed at bind time in registryListener.\n+    if (self.needs_roundtrip) {\n+        if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;\n+    }\n+    return self;\n+}\n+\n+pub fn deinit(self: *Globals) void {\n+    if (self.state.primary_output_name) |name| self.alloc.free(name);\n+    self.alloc.destroy(self);\n+}\n+\n+pub fn get(self: *const Globals, comptime tag: Tag) ?*tag.Type() {\n+    const binding = self.map.get(tag) orelse return null;\n+    return @ptrCast(binding.proxy);\n+}\n+\n+// Handlers =======================================",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-16T16:36:31Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11559
+  },
+  {
+    "comment_text": "You don't have to but if you wanted to you could really clean this up with an `inline` and then on the comptime type having a compline function to return the listener pointer.",
+    "file_path": "src/apprt/gtk/winproto/wayland/Globals.zig",
+    "code_context": "@@ -0,0 +1,234 @@\n+const Globals = @This();\n+\n+const std = @import(\"std\");\n+const Allocator = std.mem.Allocator;\n+\n+const wayland = @import(\"wayland\");\n+const wl = wayland.client.wl;\n+const kde = wayland.client.kde;\n+const org = wayland.client.org;\n+const xdg = wayland.client.xdg;\n+\n+const log = std.log.scoped(.winproto_wayland_globals);\n+\n+alloc: Allocator,\n+state: State,\n+map: std.EnumMap(Tag, Binding),\n+\n+/// Used in the initial roundtrip to determine whether more\n+/// roundtrips are required to fetch the initial state.\n+needs_roundtrip: bool = false,\n+\n+const Binding = struct {\n+    // All globals can be casted into a wl.Proxy object.\n+    proxy: *wl.Proxy,\n+    name: u32,\n+};\n+\n+pub const Tag = enum {\n+    kde_blur_manager,\n+    kde_decoration_manager,\n+    kde_slide_manager,\n+    kde_output_order,\n+    xdg_activation,\n+\n+    fn Type(comptime self: Tag) type {\n+        return switch (self) {\n+            .kde_blur_manager => org.KdeKwinBlurManager,\n+            .kde_decoration_manager => org.KdeKwinServerDecorationManager,\n+            .kde_slide_manager => org.KdeKwinSlideManager,\n+            .kde_output_order => kde.OutputOrderV1,\n+            .xdg_activation => xdg.ActivationV1,\n+        };\n+    }\n+};\n+\n+pub const State = struct {\n+    /// Connector name of the primary output (e.g., \"DP-1\") as reported\n+    /// by kde_output_order_v1. The first output in each priority list\n+    /// is the primary.\n+    primary_output_name: ?[:0]const u8 = null,\n+\n+    /// Tracks the output order event cycle. Set to true after a `done`\n+    /// event so the next `output` event is captured as the new primary.\n+    /// Initialized to true so the first event after binding is captured.\n+    output_order_done: bool = true,\n+\n+    default_deco_mode: ?org.KdeKwinServerDecorationManager.Mode = null,\n+\n+    /// Reset cached state derived from kde_output_order_v1.\n+    fn resetOutputOrder(self: *State, alloc: Allocator) void {\n+        if (self.primary_output_name) |name| alloc.free(name);\n+        self.primary_output_name = null;\n+        self.output_order_done = true;\n+    }\n+};\n+\n+pub fn init(alloc: Allocator, display: *wl.Display) !*Globals {\n+    // We need to allocate here since the listener\n+    // expects a stable memory address.\n+    const self = try alloc.create(Globals);\n+    self.* = .{\n+        .alloc = alloc,\n+        .state = .{},\n+        .map = .{},\n+    };\n+\n+    const registry = try display.getRegistry();\n+    registry.setListener(*Globals, registryListener, self);\n+    if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;\n+\n+    // Do another roundtrip to process events emitted by globals we bound\n+    // during registry discovery (e.g. default decoration mode, output\n+    // order). Listeners are installed at bind time in registryListener.\n+    if (self.needs_roundtrip) {\n+        if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;\n+    }\n+    return self;\n+}\n+\n+pub fn deinit(self: *Globals) void {\n+    if (self.state.primary_output_name) |name| self.alloc.free(name);\n+    self.alloc.destroy(self);\n+}\n+\n+pub fn get(self: *const Globals, comptime tag: Tag) ?*tag.Type() {\n+    const binding = self.map.get(tag) orelse return null;\n+    return @ptrCast(binding.proxy);\n+}\n+\n+// Handlers =======================================\n+\n+fn onGlobalAttached(self: *Globals, comptime tag: Tag) void {\n+    // Install listeners immediately at bind time. This\n+    // keeps listener setup and object lifetime in one\n+    // place and also supports globals that appear later.\n+    switch (tag) {\n+        .kde_decoration_manager => {",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-16T16:37:20Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11559
+  },
+  {
+    "comment_text": "No problem!",
+    "file_path": "src/apprt/gtk/winproto/wayland/Globals.zig",
+    "code_context": "@@ -0,0 +1,234 @@\n+const Globals = @This();\n+\n+const std = @import(\"std\");\n+const Allocator = std.mem.Allocator;\n+\n+const wayland = @import(\"wayland\");\n+const wl = wayland.client.wl;\n+const kde = wayland.client.kde;\n+const org = wayland.client.org;\n+const xdg = wayland.client.xdg;\n+\n+const log = std.log.scoped(.winproto_wayland_globals);\n+\n+alloc: Allocator,\n+state: State,\n+map: std.EnumMap(Tag, Binding),\n+\n+/// Used in the initial roundtrip to determine whether more\n+/// roundtrips are required to fetch the initial state.\n+needs_roundtrip: bool = false,\n+\n+const Binding = struct {\n+    // All globals can be casted into a wl.Proxy object.\n+    proxy: *wl.Proxy,\n+    name: u32,\n+};\n+\n+pub const Tag = enum {\n+    kde_blur_manager,\n+    kde_decoration_manager,\n+    kde_slide_manager,\n+    kde_output_order,\n+    xdg_activation,\n+\n+    fn Type(comptime self: Tag) type {\n+        return switch (self) {\n+            .kde_blur_manager => org.KdeKwinBlurManager,\n+            .kde_decoration_manager => org.KdeKwinServerDecorationManager,\n+            .kde_slide_manager => org.KdeKwinSlideManager,\n+            .kde_output_order => kde.OutputOrderV1,\n+            .xdg_activation => xdg.ActivationV1,\n+        };\n+    }\n+};\n+\n+pub const State = struct {\n+    /// Connector name of the primary output (e.g., \"DP-1\") as reported\n+    /// by kde_output_order_v1. The first output in each priority list\n+    /// is the primary.\n+    primary_output_name: ?[:0]const u8 = null,\n+\n+    /// Tracks the output order event cycle. Set to true after a `done`\n+    /// event so the next `output` event is captured as the new primary.\n+    /// Initialized to true so the first event after binding is captured.\n+    output_order_done: bool = true,\n+\n+    default_deco_mode: ?org.KdeKwinServerDecorationManager.Mode = null,\n+\n+    /// Reset cached state derived from kde_output_order_v1.\n+    fn resetOutputOrder(self: *State, alloc: Allocator) void {\n+        if (self.primary_output_name) |name| alloc.free(name);\n+        self.primary_output_name = null;\n+        self.output_order_done = true;\n+    }\n+};\n+\n+pub fn init(alloc: Allocator, display: *wl.Display) !*Globals {\n+    // We need to allocate here since the listener\n+    // expects a stable memory address.\n+    const self = try alloc.create(Globals);\n+    self.* = .{\n+        .alloc = alloc,\n+        .state = .{},\n+        .map = .{},\n+    };\n+\n+    const registry = try display.getRegistry();\n+    registry.setListener(*Globals, registryListener, self);\n+    if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;\n+\n+    // Do another roundtrip to process events emitted by globals we bound\n+    // during registry discovery (e.g. default decoration mode, output\n+    // order). Listeners are installed at bind time in registryListener.\n+    if (self.needs_roundtrip) {\n+        if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;\n+    }\n+    return self;\n+}\n+\n+pub fn deinit(self: *Globals) void {\n+    if (self.state.primary_output_name) |name| self.alloc.free(name);\n+    self.alloc.destroy(self);\n+}\n+\n+pub fn get(self: *const Globals, comptime tag: Tag) ?*tag.Type() {\n+    const binding = self.map.get(tag) orelse return null;\n+    return @ptrCast(binding.proxy);\n+}\n+\n+// Handlers =======================================\n+\n+fn onGlobalAttached(self: *Globals, comptime tag: Tag) void {\n+    // Install listeners immediately at bind time. This\n+    // keeps listener setup and object lifetime in one\n+    // place and also supports globals that appear later.\n+    switch (tag) {\n+        .kde_decoration_manager => {",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-16T16:42:02Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11559
+  },
+  {
+    "comment_text": "I pulled this down and tried it and it simply doesn't work for me at all.\r\n\r\n1. Run\r\n2. New tab\r\n3. Double click tab title\r\n4. Cmd+V (I have text on the clipboard)\r\n5. Beep",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-16T16:47:52Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11557
+  },
+  {
+    "comment_text": "We can fine tune the output and such later, but happy to have this, I think this will help a lot with AI too, and we should consider that.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-16T16:52:10Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11546
+  },
+  {
+    "comment_text": "> I also came across [this](https://github.com/ghostty-org/ghostty/blob/e75f8956c576ea8acf6ee4e70d45f918738e7512/src/termio/stream_handler.zig#L645-L682) comment, which I think is related.\r\n\r\nAhhhhhh yes.\r\n\r\nThis is actually a really good argument for this to be default off. Because the more modern approach (CSI q) _will not work_ if mode 12 is on. And if it defaults to on, then CSI q will be busted. I think default off is the way to go. I'll continue to monitor this PR for discussions though.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-16T16:58:25Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11484
+  },
+  {
+    "comment_text": "Either copy it or just remove it, I don't think there's so much in here that we need it. Most other large files don't at all (its fairly obvious from a simple decl list)",
+    "file_path": "src/apprt/gtk/winproto/wayland/Globals.zig",
+    "code_context": "@@ -0,0 +1,234 @@\n+const Globals = @This();\n+\n+const std = @import(\"std\");\n+const Allocator = std.mem.Allocator;\n+\n+const wayland = @import(\"wayland\");\n+const wl = wayland.client.wl;\n+const kde = wayland.client.kde;\n+const org = wayland.client.org;\n+const xdg = wayland.client.xdg;\n+\n+const log = std.log.scoped(.winproto_wayland_globals);\n+\n+alloc: Allocator,\n+state: State,\n+map: std.EnumMap(Tag, Binding),\n+\n+/// Used in the initial roundtrip to determine whether more\n+/// roundtrips are required to fetch the initial state.\n+needs_roundtrip: bool = false,\n+\n+const Binding = struct {\n+    // All globals can be casted into a wl.Proxy object.\n+    proxy: *wl.Proxy,\n+    name: u32,\n+};\n+\n+pub const Tag = enum {\n+    kde_blur_manager,\n+    kde_decoration_manager,\n+    kde_slide_manager,\n+    kde_output_order,\n+    xdg_activation,\n+\n+    fn Type(comptime self: Tag) type {\n+        return switch (self) {\n+            .kde_blur_manager => org.KdeKwinBlurManager,\n+            .kde_decoration_manager => org.KdeKwinServerDecorationManager,\n+            .kde_slide_manager => org.KdeKwinSlideManager,\n+            .kde_output_order => kde.OutputOrderV1,\n+            .xdg_activation => xdg.ActivationV1,\n+        };\n+    }\n+};\n+\n+pub const State = struct {\n+    /// Connector name of the primary output (e.g., \"DP-1\") as reported\n+    /// by kde_output_order_v1. The first output in each priority list\n+    /// is the primary.\n+    primary_output_name: ?[:0]const u8 = null,\n+\n+    /// Tracks the output order event cycle. Set to true after a `done`\n+    /// event so the next `output` event is captured as the new primary.\n+    /// Initialized to true so the first event after binding is captured.\n+    output_order_done: bool = true,\n+\n+    default_deco_mode: ?org.KdeKwinServerDecorationManager.Mode = null,\n+\n+    /// Reset cached state derived from kde_output_order_v1.\n+    fn resetOutputOrder(self: *State, alloc: Allocator) void {\n+        if (self.primary_output_name) |name| alloc.free(name);\n+        self.primary_output_name = null;\n+        self.output_order_done = true;\n+    }\n+};\n+\n+pub fn init(alloc: Allocator, display: *wl.Display) !*Globals {\n+    // We need to allocate here since the listener\n+    // expects a stable memory address.\n+    const self = try alloc.create(Globals);\n+    self.* = .{\n+        .alloc = alloc,\n+        .state = .{},\n+        .map = .{},\n+    };\n+\n+    const registry = try display.getRegistry();\n+    registry.setListener(*Globals, registryListener, self);\n+    if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;\n+\n+    // Do another roundtrip to process events emitted by globals we bound\n+    // during registry discovery (e.g. default decoration mode, output\n+    // order). Listeners are installed at bind time in registryListener.\n+    if (self.needs_roundtrip) {\n+        if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;\n+    }\n+    return self;\n+}\n+\n+pub fn deinit(self: *Globals) void {\n+    if (self.state.primary_output_name) |name| self.alloc.free(name);\n+    self.alloc.destroy(self);\n+}\n+\n+pub fn get(self: *const Globals, comptime tag: Tag) ?*tag.Type() {\n+    const binding = self.map.get(tag) orelse return null;\n+    return @ptrCast(binding.proxy);\n+}\n+\n+// Handlers =======================================",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-16T17:13:11Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11559
+  },
+  {
+    "comment_text": "This can't possibly be right though, because these can be overridden at the system level (Settings.app). Hardcoding shortcut values can't be the right path forward...",
+    "file_path": "macos/Sources/Features/Terminal/Window Styles/TerminalWindow.swift",
+    "code_context": "@@ -187,6 +187,32 @@ class TerminalWindow: NSWindow {\n         super.sendEvent(event)\n     }\n \n+    override func performKeyEquivalent(with event: NSEvent) -> Bool {\n+        // If the tab title editor is active, send the action directly to the\n+        // field editor. The editor sits in the tab bar (outside the content\n+        // view hierarchy), so the normal performKeyEquivalent walk through the\n+        // content view never reaches it, and the menu dispatch does not reliably\n+        // fire during this phase. Sending the action directly is both simpler\n+        // and more reliable.\n+        if let fieldEditor = tabTitleEditor.activeFieldEditor,\n+           event.type == .keyDown,\n+           event.modifierFlags.contains(.command) {\n+            let action: Selector? = switch event.charactersIgnoringModifiers {\n+            case \"c\": #selector(NSText.copy(_:))",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-16T23:38:18Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11557
+  },
+  {
+    "comment_text": "!unvouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-16T23:39:03Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11557
+  },
+  {
+    "comment_text": "!unvouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-17T15:41:42Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11537
+  },
+  {
+    "comment_text": "- The environment variable isn't right\r\n- The update-config change isn't right\r\n\r\nThats the whole PR. Its all wrong.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-17T16:23:09Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11537
+  },
+  {
+    "comment_text": "I will add that I'm sorry if this is your first PR and you need a bit more handholding. I'm really not trying to make this personal at all. Every PR has an associated human cost on the other side to review and fix up or provide feedback. And all around time is limited. I don't have the energy currently to guide you through to the finish line on this PR, that's all.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-17T16:33:19Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11537
+  },
+  {
+    "comment_text": "> The tone does feel very hostile here -- I really didn't do anything egregious in my opinion\r\n\r\nNothing hostile about it from me. I just don't have time to fix your work. If you want to do your own diligence and figure it out and try again go for it. But this is already working for you, just maintain it in your fork. Like I said, it's not personal at all to you.\r\n\r\n> but now I'm blocklisted from ever attempting to contribute again?\r\n\r\nFalse.\r\n\r\nI'm going to lock this now. All the information you need to figure this out is out there if you so wish.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-17T17:57:00Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11537
+  },
+  {
+    "comment_text": "I think I'd prefer a single file like `pty.c` and using `#ifdef` to guard the different operating systems. We can inject stuff via the Zig build system too, but I think thats actually cleaner to consolidate over what we have here.\n\nI also wonder if this should be a header file not a C file and we use translateC on it instead...\n\nPutting this in a C file instead of our previous import is a much better idea, though!",
+    "file_path": "src/pty/freebsd.c",
+    "code_context": "",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-19T15:45:13Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "We don't need to dupe this enum, the enum itself isn't specific to any implementation so I think we can get rid of this (you have the root level one below I think?)",
+    "file_path": "src/termio/Exec.zig",
+    "code_context": "@@ -1226,6 +1226,32 @@ const Subprocess = struct {\n     fn killCommandFlatpak(command: *FlatpakHostCommand) !void {\n         try command.signal(c.SIGHUP, true);\n     }\n+\n+    pub const ProcessInfo = enum {",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-19T15:49:38Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "Oh here, too, I'd just reference `pty.ProcessInfo`",
+    "file_path": "src/termio/Termio.zig",
+    "code_context": "@@ -764,3 +764,28 @@ pub const ThreadData = struct {\n         self.* = undefined;\n     }\n };\n+\n+pub const ProcessInfo = enum {",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-19T15:49:56Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "Another one!! Holy cow you copy and pasted this thing everywhere lmao.",
+    "file_path": "src/pty.zig",
+    "code_context": "@@ -78,36 +79,39 @@ const NullPty = struct {\n     pub fn childPreExec(self: Pty) ChildPreExecError!void {\n         _ = self;\n     }\n+\n+    pub const ProcessInfo = enum {",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-19T15:50:15Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "Another one...",
+    "file_path": "src/pty.zig",
+    "code_context": "@@ -249,6 +263,77 @@ const PosixPty = struct {\n         posix.close(self.slave);\n         posix.close(self.master);\n     }\n+\n+    pub const ProcessInfo = enum {",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-19T15:50:35Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "Another one...",
+    "file_path": "src/pty.zig",
+    "code_context": "@@ -398,6 +483,28 @@ const WindowsPty = struct {\n         if (result != windows.S_OK) return error.ResizeFailed;\n         self.size = size;\n     }\n+\n+    pub const ProcessInfo = enum {",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-19T15:50:44Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "Another one....",
+    "file_path": "src/Surface.zig",
+    "code_context": "@@ -6342,6 +6342,31 @@ fn testMouseSelectionIsNull(\n     );\n }\n \n+pub const ProcessInfo = enum {",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-19T15:50:52Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-20T13:48:46Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11686
+  },
+  {
+    "comment_text": "This seems reasonable to me, @jcollie @pluiedev thoughts? Not the expert here.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-20T13:49:01Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11686
+  },
+  {
+    "comment_text": "We can avoid this whole switch and unconditionally do it if we wrap the C file in an `#ifdef`, which I think would still be cleaner.",
+    "file_path": "src/build/SharedDeps.zig",
+    "code_context": "@@ -135,6 +135,54 @@ pub fn add(\n     // Every exe needs the terminal options\n     self.config.terminalOptions().add(b, step.root_module);\n \n+    // C imports needed to manage/create PTYs\n+    switch (target.result.os.tag) {",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-20T14:05:16Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "I think we can use standard clang macros for this, I believe Zig supports them:\n\n```c\n#if defined(__APPLE__)\n  // Apple platforms\n#elif defined(__linux__)\n  // Linux\n#elif defined(__FreeBSD__)\n  // FreeBSD\n#else\n  #error \"Unsupported platform\"\n#endif\n```",
+    "file_path": "src/pty.c",
+    "code_context": "@@ -0,0 +1,34 @@\n+#if ZIG_TARGET == ZIG_TARGET_FREEBSD",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-20T14:07:04Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "If we need specifically macOS:\r\n\r\n```c\r\n#if defined(__APPLE__)\r\n  #include <TargetConditionals.h>\r\n  #if TARGET_OS_MAC\r\n    #define PLATFORM_MACOS 1\r\n  #endif\r\n#elif defined(__linux__)\r\n  #define PLATFORM_LINUX 1\r\n#elif defined(__FreeBSD__)\r\n  #define PLATFORM_FREEBSD 1\r\n#else\r\n  #error \"Unsupported platform\"\r\n#endif\r\n```",
+    "file_path": "src/pty.c",
+    "code_context": "@@ -0,0 +1,34 @@\n+#if ZIG_TARGET == ZIG_TARGET_FREEBSD",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-20T14:08:19Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "Ooooh I wonder if this will work robustly or if we need to use our pkg/apple_sdk package here. Let's just see from the CI...",
+    "file_path": "src/build/SharedDeps.zig",
+    "code_context": "@@ -135,6 +135,27 @@ pub fn add(\n     // Every exe needs the terminal options\n     self.config.terminalOptions().add(b, step.root_module);\n \n+    // C imports needed to manage/create PTYs\n+    {\n+        const c = b.addTranslateC(.{\n+            .root_source_file = b.path(\"src/pty.c\"),\n+            .target = target,\n+            .optimize = optimize,\n+        });\n+        switch (target.result.os.tag) {\n+            .macos => {\n+                const libc = try std.zig.LibCInstallation.findNative(.{",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-20T15:46:17Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-20T16:42:11Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11698
+  },
+  {
+    "comment_text": "Yeah no problem, if it works that's great.",
+    "file_path": "src/build/SharedDeps.zig",
+    "code_context": "@@ -135,6 +135,27 @@ pub fn add(\n     // Every exe needs the terminal options\n     self.config.terminalOptions().add(b, step.root_module);\n \n+    // C imports needed to manage/create PTYs\n+    {\n+        const c = b.addTranslateC(.{\n+            .root_source_file = b.path(\"src/pty.c\"),\n+            .target = target,\n+            .optimize = optimize,\n+        });\n+        switch (target.result.os.tag) {\n+            .macos => {\n+                const libc = try std.zig.LibCInstallation.findNative(.{",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-20T17:19:28Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11639
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-21T20:56:49Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11729
+  },
+  {
+    "comment_text": "Replaced by #11732",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-21T22:10:43Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11729
+  },
+  {
+    "comment_text": "!vouch",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-22T20:28:29Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11754
+  },
+  {
+    "comment_text": "Please open another PR. My only wasm testing is via the browser so I'm not sure what your use case is but happy to incorporate it and cover it with CI.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-22T21:22:51Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11729
+  },
+  {
+    "comment_text": "Yeah FYI @deblasis is someone I've known in my communities fora long time, they're good people.I agree with @jcollie here though we should break this down into smaller chunks.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-23T15:49:27Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11771
+  },
+  {
+    "comment_text": "We should move this to a dedicated allocator.zig file in this folder.",
+    "file_path": "src/terminal/c/main.zig",
+    "code_context": "@@ -112,6 +115,21 @@ pub const mouse_encoder_encode = mouse_encode.encode;\n \n pub const paste_is_safe = paste.is_safe;\n \n+/// Free memory that was allocated by a libghostty-vt function.\n+///\n+/// This must be used to free buffers returned by functions like\n+/// `format_alloc`. Pass the same allocator (or NULL for the default)\n+/// that was used for the allocation.\n+pub fn free_alloc(",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-23T20:18:12Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11785
+  },
+  {
+    "comment_text": "Oh the libghostty one definitely should already not have it. It passes and we have to keep it passing. I\u2019ll take a look tomorrow",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-24T05:31:25Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11796
+  },
+  {
+    "comment_text": "This is too much, can you find the rough number it actually needs and just bump towards that? 10x is too much and too slow if it ever actually was near this number.",
+    "file_path": "src/lib/enum.zig",
+    "code_context": "@@ -105,7 +105,7 @@ pub fn checkGhosttyHEnum(\n     try std.testing.expect(info.@\"enum\".tag_type == c_int);\n     try std.testing.expect(info.@\"enum\".is_exhaustive == true);\n \n-    @setEvalBranchQuota(1000000);\n+    @setEvalBranchQuota(10_000_000);",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-24T17:50:13Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11813
+  },
+  {
+    "comment_text": "Why is it so much higher for Windows than what is required for other platforms? I don't understand.",
+    "file_path": "src/lib/enum.zig",
+    "code_context": "@@ -105,7 +105,7 @@ pub fn checkGhosttyHEnum(\n     try std.testing.expect(info.@\"enum\".tag_type == c_int);\n     try std.testing.expect(info.@\"enum\".is_exhaustive == true);\n \n-    @setEvalBranchQuota(1000000);\n+    @setEvalBranchQuota(10_000_000);",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-24T18:36:31Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11813
+  },
+  {
+    "comment_text": "Yes this is fine. Thank you",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-24T19:56:07Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11813
+  },
+  {
+    "comment_text": "Where does it say OSC133 should behave this way? We can't introduce our own semantics into sequences we don't create. If this isn't specified or done by other terminals, I think you should make a broader proposal to terminals to get buy-in first. This kind of stuck can have ripple effects.\r\n\r\nFwiw this sounds like a bug in SSH to me. SSH should probably reset all terminal state to the prior state before connection is made (`ssh` itself runs host side, of course). Or even shells. \r\n\r\nThis doesn't like a robust solution either, because nested OSC133 may actually want mouse reporting on (imagine e.g. a nested REPL using `aid` within Neovim or something). You wouldn't want a stray OSC133 in a nested prompt to clear all mouse reporting.\r\n\r\nSo, if this is done by other terminals and the spec, I'll accept the shortcomings, but if its not, then I think this is a weak proposal.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-25T15:34:57Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11833
+  },
+  {
+    "comment_text": "Thanks, a short term fix would be to fix this in your shell configuration btw. You can make your prompt reset mouse reporting through mode set sequences. Its not slow.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-25T15:40:20Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11833
+  },
+  {
+    "comment_text": "I'm going to say _for now_ I'm not ready to pull this trigger... but lets keep talking...",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-25T20:01:55Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11842
+  },
+  {
+    "comment_text": "Fwiw, I also like C#.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-25T20:46:22Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11842
+  },
+  {
+    "comment_text": "There's a test failure.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-25T20:46:35Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11839
+  },
+  {
+    "comment_text": "I'm going to for now say no to this too just because its unclear if an HWND is the proper data model for this integration yet (or if its whatever DirectX renders into... which may be an hwnd...)",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-25T20:53:09Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11841
+  },
+  {
+    "comment_text": "This looks fine for me, let me know when you're ready for a review.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-26T02:39:43Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11839
+  },
+  {
+    "comment_text": "This should be b.allocator I think.",
+    "file_path": "src/build/GhosttyLib.zig",
+    "code_context": "@@ -94,6 +94,44 @@ pub fn initShared(\n     });\n     _ = try deps.add(lib);\n \n+    // On Windows with MSVC, building a DLL requires the full CRT library\n+    // chain. linkLibC() (called via deps.add) provides msvcrt.lib, but\n+    // that references symbols in vcruntime.lib and ucrt.lib. Zig's library\n+    // search paths include the MSVC lib dir and the Windows SDK 'um' dir,\n+    // but not the SDK 'ucrt' dir where ucrt.lib lives.\n+    if (deps.config.target.result.os.tag == .windows and\n+        deps.config.target.result.abi == .msvc)\n+    {\n+        // The CRT initialization code in msvcrt.lib calls __vcrt_initialize\n+        // and __acrt_initialize, which are in the static CRT libraries.\n+        lib.linkSystemLibrary(\"libvcruntime\");\n+\n+        // ucrt.lib is in the Windows SDK 'ucrt' dir. Detect the SDK\n+        // installation and add the UCRT library path.\n+        const arch = deps.config.target.result.cpu.arch;\n+        const sdk = std.zig.WindowsSdk.find(b.graph.arena, arch) catch null;\n+        if (sdk) |s| {\n+            if (s.windows10sdk) |w10| {\n+                const arch_str: []const u8 = switch (arch) {\n+                    .x86_64 => \"x64\",\n+                    .x86 => \"x86\",\n+                    .aarch64 => \"arm64\",\n+                    else => \"x64\",\n+                };\n+                const ucrt_lib_path = std.fmt.allocPrint(\n+                    b.graph.arena,",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-26T14:17:13Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11856
+  },
+  {
+    "comment_text": "This can go in `test/windows` and should probably have a [very short] README of how to run it and so on.",
+    "file_path": "test/windows/test_dll_init.c",
+    "code_context": "",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-26T14:18:28Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11856
+  },
+  {
+    "comment_text": "Yes, this should be requested in Kitty and go through the normal process of approval there then we'll follow suit.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-26T14:20:17Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11848
+  },
+  {
+    "comment_text": "I'm happy to merge infrastructure (e.g. CI, build changes) to make Windows help build but not ready to import complex logic like this since I can't maintain it at all. I think for now this is best in a fork until we're ready.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-27T12:59:09Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11886
+  },
+  {
+    "comment_text": "Something funky happened with GH. I merged it but got a 500, but it says open still despite the commit existing. So now I'm going to try to close this...",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-27T13:01:16Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11872
+  },
+  {
+    "comment_text": "Whoops! Thanks.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-27T22:36:26Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11906
+  },
+  {
+    "comment_text": "I actually see this fail on Linux sometimes too, I suspect it's not timer resolution but actually just that the test is sometimes too fast. Still, willing to merge.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-28T15:53:18Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11930
+  },
+  {
+    "comment_text": "Note that the Zig recommendation is that we put as much of our C stuff into a single C file and translate once. But, we can figure out if that makes sense and such later. This is good for now. Thank you!",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-28T15:56:36Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11920
+  },
+  {
+    "comment_text": "Putting this in 1.4 because all the various Windows build fixes were towards 1.4 anyways.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-28T15:56:58Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11920
+  },
+  {
+    "comment_text": "This looks very interesting, but I would love a discussion or more context on how you triggered this and where it affected you etc.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-28T18:26:59Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11934
+  },
+  {
+    "comment_text": "One day I'm going to debug why dependabot dist jobs fail. One day.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-30T15:31:13Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11967
+  },
+  {
+    "comment_text": "That's useful!! Our `config.version` parse should replace that. I'll take a look rn thats easy.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-30T15:45:16Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11967
+  },
+  {
+    "comment_text": "Fuck. GitHub fucked up the merge. Anyways, this is merged despite this PR state.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-30T15:46:26Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11972
+  },
+  {
+    "comment_text": "Rebase your PRs please!",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-30T16:19:05Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11980
+  },
+  {
+    "comment_text": "I think it'd be cleaner to do `case stable(version: String)` and `case tip(commit: String?)` and then make `var url: URL?` a computed var (that could yield nothing). I'm not going to block merging on that but if you want to do some clean up...",
+    "file_path": "macos/Sources/Features/About/AboutView.swift",
+    "code_context": "@@ -10,6 +10,30 @@ struct AboutView: View {\n     private var build: String? { Bundle.main.infoDictionary?[\"CFBundleVersion\"] as? String }\n     private var commit: String? { Bundle.main.infoDictionary?[\"GhosttyCommit\"] as? String }\n     private var version: String? { Bundle.main.infoDictionary?[\"CFBundleShortVersionString\"] as? String }\n+\n+    private enum VersionConfig {\n+        case stable(version: String, url: URL?)",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2026-03-31T02:38:39Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 12007
+  },
+  {
+    "comment_text": "I'm not like 100% if these are good behaviors but I tagged for 1.4 so we can let it sit for awhile to find out.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2026-03-31T02:39:42Z",
+    "reviewer_username": "mitchellh",
+    "pr_number": 11980
+  }
+]

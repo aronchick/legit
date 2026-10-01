@@ -8,6 +8,7 @@ import re
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from legit.config import LEGIT_DIR
 from legit.models import RetrievalDocument
@@ -119,7 +120,7 @@ class BM25Index:
         self.inverted: dict[str, dict[int, int]] = defaultdict(dict)
 
         # Original documents stored alongside the index
-        self.documents: list[dict] = []
+        self.documents: list[dict[str, Any]] = []
 
     # -- construction -------------------------------------------------------
 
@@ -240,7 +241,7 @@ def build_index(profile_name: str, documents: list[RetrievalDocument]) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def construct_queries(diff_hunks: list[dict]) -> list[str]:
+def construct_queries(diff_hunks: list[dict[str, Any]]) -> list[str]:
     """Build retrieval queries from PR diff hunks.
 
     Each hunk dict is expected to have at least:

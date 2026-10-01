@@ -1,213 +1,453 @@
 [
   {
-    "comment_text": "Many systems support event hooks for extensions. A few examples:\nhttps://developers.google.com/appengine/docs/java/javadoc/com/google/appengine/api/LifecycleManager\nhttp://developer.android.com/guide/components/activities.html\nhttp://upstart.ubuntu.com/cookbook/#event\nhttps://coreos.com/docs/launching-containers/launching/getting-started-with-systemd/\nhttp://elasticbox.com/documentation/configuring-and-managing-boxes/start-stop-and-upgrade-boxes/\nhttp://git-scm.com/docs/githooks.html\n\ndocker stop and restart currently send SIGTERM followed by SIGKILL, similar to many other systems (e.g., Heroku: https://devcenter.heroku.com/articles/dynos#graceful-shutdown-with-sigterm), which provides an opportunity for applications to cleanly shut down, but lacks the ability to communicate the grace period duration or termination reason and doesn't directly provide support for notifying other processes or services.\n\nAs described in the (liveness probe issue)[https://github.com/GoogleCloudPlatform/kubernetes/issues/66], it would be useful to support multiple types of hook execution/notification mechanisms. It would also be useful to pass arguments from clients, such as \"reason\" (e.g., \"cancel\", \"restart\", \"reload\", \"resize\", \"reboot\", \"move\", \"host_update\", \"probe_failure\"). Another way \"reason\" could be handled is with user-defined events.\n\nIn addition to pre-termination notification, we should define other lifecycle hook points, probably at least pre- and post- start and terminate. \n\nIt would be useful for post-terminate to be passed the (termination reason)[https://github.com/GoogleCloudPlatform/kubernetes/issues/137], which could either be successful completion, a client-provided stop reason (see above), or detailed failure reason (exit, signal, OOM, container creation error, docker crash, machine crash, lost/ghost). \n\nIf the application generated an assertion failure or exception message, a post-termination hook could copy it to (/run/status.txt)[https://github.com/GoogleCloudPlatform/kubernetes/issues/139].\n\nIt would also be useful to be able to control (restart behavior)[https://github.com/GoogleCloudPlatform/kubernetes/issues/127] from a hook. We'd need a convenient way to carry over state from a previous execution. The simplest starting point would be for the user to keep it in a (volume)[https://github.com/GoogleCloudPlatform/kubernetes/issues/97].",
+    "comment_text": "LGTM. Thanks",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2014-06-17T21:11:51Z",
+    "timestamp": "2014-06-11T19:07:03Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 57
   },
   {
-    "comment_text": "LIST queries can be filtered by label selector.\n\nIt should also be possible to filter LISTs of replication controllers and services by _labels_. What this would do is return objects whose label selectors matched the specified labels. This would make it straightforward to figure out which service(s) targeted a particular pod, for instance, without creating a single label applied to both, which kubecfg currently does for its simple use case, but is an anti-pattern in the general case. Clients should apply the same labels to services as to the pods they control, but pods likely will carry a superset of the service labels.\n\nNote that this functionality (though not the same API) is also needed in order to implement Watch of pods filtered by a label selector, since newly created pods need to be matched against outstanding Watches. It would also be useful to validate that there's at most one replication controller targeting a given pod at a time.\n\nThis may be a bit confusing right now, because label selectors look like sets of labels, and even use the parameter name \"labels\" in LIST queries, but really aren't labels, esp. once selectors are generalized (#341). I suggest we change that parameter to \"selector\" and use \"labels\" for this proposal. The \"labels\" parameter would only be valid for API objects containing selectors.\n\n/cc @lavalamp",
-    "file_path": "",
-    "code_context": "",
-    "comment_type": "issue_comment",
+    "comment_text": "@lavalamp @smarterclayton @erictune \nSorry for joining the discussion late. Many deep issues affecting the API layering and system architecture are entangled in this discussion. So, first I'll do a brain dump, then we can discuss how to break up the problem and converge on concrete solutions.\n\nAdmission control: Should the request to run this particular Pod be accepted? Clients definitely need to be able to distinguish permanent from temporary rejection, for some definition of \"permanent\" in a dynamic environment, and users, and in some cases systems, need actionable information about the cause of the rejection. For instance, the rejection could be due to authorization failure, invalid request, exceeding budget or quota, etc. \n\nHowever, the same question may also apply to sets of pods. For instance, a batch scheduler may want to make an admission-control decision based on whether a whole set of pods could be gang-scheduled simultaneously. A higher-level service placement system may want to determine whether a whole service could \"fit\". Update/rollout tools may want to verify that the updated resource requirements will work in aggregate. So, we'll likely need a way to invoke an admission-control decision on an aggregate resource request of some kind, without actually instantiating the underlying resource consumers (i.e., pods in this case).\n\nAdditionally, typically these kinds of decisions also want some assurance that the resources will be available beyond the current moment. For deployments of k8s on physical hosts, this may involve ensuring that enough spare capacity has been provisioned, taking into account potential host failures and maintenance. Being able to satisfy the resource requests \"now\" isn't sufficient. For deployments on virtual hosts, we'll need to figure out what interfaces we need to wrap around the underlying virtual resource provisioning mechanisms. In general, we want to ensure we have the means to communicate resource demand to provisioning mechanisms, including both host provisioning and quota provisioning. \n\nWe'll also need to figure out how we should handle resource (de)fragmentation and workload churn in these decisions. This is related to Clayton's point about retry and back-off.\n\nIf we reject pod creation requests due to instantaneous infeasibility/unsatisfiability, then we create a situation where services could be starved indefinitely of resources, regardless of priority, fairness, etc. Mesos addressed this with its resource offer mechanism: http://static.usenix.org/event/nsdi11/tech/full_papers/Hindman_new.pdf. Some sort of resource request queue or scoreboard is needed. Probably we should involve Mesosphere (@adam-mesos) in the discussion of the approach to take here, as well as in the resource demand signaling discussed above.\n\nSpeaking of priority, that raises the issue of preemption in order to satisfy higher-priority requests.\n\nSynchronous vs. asynchronous admission control and/or scheduling: Synchronous is easier for users to deal with, but asynchronous provides more flexibility and transparency to higher-level infrastructure layers. A synchronous interface can always be layered upon an asynchronous API, on the server or in libraries, UI, CLI, etc. If asynchronous, that's where it becomes necessary to represent that the request is awaiting an external dependency to be satisfied. Which leads me to...\n\nAn explicit enumeration of states and state machine, especially where those states may be persisted and/or interpreted by clients: This approach has a number of problems (e.g., the persisted state value may diverge from the actual current status), but the biggest is that it's not extensible. Components of the system, clients, user applications, etc. will bake in a particular set of states. The bigger the ecosystem becomes, the harder it becomes to add to that set of states, and it quickly becomes impossible to even change the observed runtime behavior of the existing states. Components don't know how to handle new, unrecognized states. Extensions to the system have no way of injecting new states dynamically in a running system, so they instead use hacks rather than states. Instead, I think there are just 3 relevant states: not yet running, running, and terminated. \n\nThere may be many reasons for not yet running. We should have a separate field to indicate the reason, which shouldn't be a strict enumeration, but which should represent what component/decision we're waiting on. It should be possible to dynamically orchestrate a chain of decisions (e.g., resource prediction -> cluster selection -> gang scheduling -> cluster admission control -> instance scheduling) using a continuation-passing approach. (Related to that, some kind of event bus will be needed in order to kick off automation that isn't on the critical path of instantiating the objects.)\n\nSimilarly, there are many reasons for termination -- see #137 .\n\nInterface with scheduler: Did this PR imply that the interface should be implicit through the shared state in etcd? Let's not do that. Let's hash out a real API, here or elsewhere.\n\nMaster vs. Kubelet APIs: We're going to have to split these, ideally in a way that they cleanly compose.\n\nDesired state vs. current state: I don't like the way these are represented in the current API. We need to split them into separate schemas with distinct (but related) API endpoints. The current approach is a source of user confusion, is hard to even document, and will be problematic for declarative config systems.\n\nDid I miss any issues?",
+    "file_path": "pkg/api/types.go",
+    "code_context": "@@ -196,9 +196,21 @@ type PodStatus string\n \n // These are the valid statuses of pods.\n const (\n+\t// PodNew means the pod has just been added to the system.\n+\tPodNew PodStatus = \"New\"\n+\t// PodAdmitted means the pod has been accepted by a scheduler as feasible.\n+\tPodAdmitted PodStatus = \"Admitted\"\n+\t// PodAssigned means the pod has been scheduled and is waiting for kubelet to start it.\n+\tPodAssigned PodStatus = \"Assigned\"\n+\t// PodRunning means that the pod is up and running.\n \tPodRunning PodStatus = \"Running\"\n-\tPodPending PodStatus = \"Pending\"\n+\t// PodStopped means that the pod has stopped.\n \tPodStopped PodStatus = \"Stopped\"\n+\t// PodInfeasible means that the cluster lacks resources to run the pod. Most commonly,\n+\t// a pod would get this status after having had status \"New\" because a scheduler decided\n+\t// that the system doesn't have a space for the pod. Pods that were previously \"Admitted\"\n+\t// should rarely, if ever, be subsequently rejected with this status.\n+\tPodInfeasible PodStatus = \"Infeasible\"",
+    "comment_type": "pr_review",
     "severity": "unknown",
-    "timestamp": "2014-09-17T23:09:31Z",
+    "timestamp": "2014-07-23T20:34:04Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 557
   },
   {
-    "comment_text": "Split off of #1178 and #1200.\n\nIt would be useful to be able to specify fields to be returned by GET or LIST, such as just ObjectMetadata, DesiredState, or CurrentState.\n\nThis could make a number of operations easier and cheaper, such as LISTing pods controlled by a replication controller, as in #1325.",
+    "comment_text": "Overall, this seems reasonable as a starting point. I like that the API is simple and narrow.\n\nHow hard would it be to move bindings from the main API to a separate API (e.g., by exposing a new HTTP server on another port)? I'd like to separate user operations and infrastructure operations into distinct APIs. That would reduce the API surface most people need to deal with, would make authorization policy easier to specify and enforce down the road, and would allow us to independently version the 2 APIs, which would be useful because I expect many more uses of the user operations than of the infrastructure operations. \n\nHow is the scheduler going to discover pods that need to be scheduled? This is related to the pod status PR, I guess. :-)\n\nSome other thoughts on future issues that will come up, but which I don't think affect this PR:\n- Once we implement the resource model, the core should validate feasibility and not just rely on the scheduler. Once we support multi-tenancy, if we have exclusion/dedication concepts like sole tenancy, the core will need to enforce those policies, too.\n- Host resource and binding info: Is there any way for schedulers to watch how much resources are available on all the hosts? Is there any way for schedulers to ask what pods are bound to each host?\n- Consistency in the case of multiple scheduler replicas: HA schedulers will run with warm spares. They'll likely use master election (e.g., using etcd), but there could still be cases where a scheduler replica that had lost its lease and had stale information was still submitting bindings. We may want to add an explicit lease mechanism in the future to support this, in which case the binding would refer to the lease object and would be rejected if it referred to an invalid lease. \n- Multiple schedulers: Each scheduler would want its own lease. We'd need some policies about resource sharing and how to resolve conflicts (priorities or somesuch). And we'd need a mechanism for deciding and/or specifying which scheduler to use for a particular request. If we want users to be able to provide schedulers in a multi-tenant environment, that opens up a big can of worms.\n- Preemptions: We may want to add preemptions in the future. Preemptions need to be ACKed before the binding can be made, which means there would at least need to be a dependency between the 2 operations. This is one reason why I think we're going to need mutations to return per-object sequence numbers and both reads and writes could optionally take sequence numbers to explicitly specify operation ordering in a way that works across proxies, etc. Also, it's useful to record the reason for the preemption and possibly the binding that triggered the preemption. I suppose we could just give schedulers the power to stop pods and provide a way to record the reason.\n- Batches of bindings: We may want to support batches of bindings for higher throughput. Alternatively, we could add sequence numbers and just allow the scheduler to send multiple outstanding bindings asynchronously.\n- Feasibility checks: We'll want a way to validate feasibility without actually binding a pod.",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2014-09-26T06:36:30Z",
+    "timestamp": "2014-07-24T22:53:14Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 592
   },
   {
-    "comment_text": "As discussed in #1007, #1694, #1132, and elsewhere, Docker image names/tags are not immutable. If one wants a repeatable deployment, predictable rollbacks, etc., they need to be resolved at deployment time and recorded. I expect rollbacks to be driven off of version-controlled configuration data, which means they need to be processed on the client side or returned to the client. I propose a self-contained pre-processing program to do this, to fit into the build-oriented approach proposed in #1694.\n\nThe original names/tags should be recorded in the pod as annotations.",
+    "comment_text": "I'd like to establish the pattern of partitioning the API by anticipated type of client. For instance:\n- user objects: pods\n- scheduler objects: bindings\n- machine management objects: hosts\n\nIt may not be much of an issue now, but I'm looking ahead to when we have lots more object types, more ecosystem components and API layers, more implementations of the APIs, etc. I could imagine splitting these APIs into separate services, for example.",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2014-10-09T22:02:57Z",
+    "timestamp": "2014-07-24T23:42:43Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 592
   },
   {
-    "comment_text": "Forked from #1107 and #386.\n\nNow seems like a good time to decide whether we want to require/encourage/allow pods to declare services they depend upon. Internally, we've often wished we had such a mechanism. \n\nNot only would pre-declaration reduce accidental/lazy coupling, but it would also improve scalability by reducing the number of iptables rules that must be created. Pre-declaration would also be compatible with Docker's approach to links. If we supported service aliasing in these declarations, that would facilitate dependency injection for tests and a wide variety of deployment adaptation scenarios, which seems like a compelling alternative to custom environment variables, command-line flags, dynamic configuration services, and so on.\n\nHowever, it at least needs possible to opt out of static declaration and/or enforcement of service dependencies, such as in the case that dependent services are registered dynamically -- think of a proxy, load balancer, web browser, monitoring service, or naming/discovery service running in a container. \n\nWe'd also definitely need to support more flavors of services (cardinal services, headless services, master election, sharding, ...) in order for most clients to be able to utilize the pre-declaration mechanism.\n\nSomething else to consider is how to address dependencies pulled in by client libraries, though perhaps it's not unreasonable to require client libraries to be transparent regarding which services they access.\n\n/cc @thockin @smarterclayton",
+    "comment_text": "@lavalamp: I meant per object, but we'd need a way to specify cross-object\npreconditions/prerequisites. Do we return that now in ServerOp in response\nto every mutating operation?\n\n@smarterclayton: No reason not to do this now.",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2014-10-14T03:59:36Z",
+    "timestamp": "2014-07-25T01:03:51Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 592
   },
   {
-    "comment_text": "Filing this issue for discussion and tracking, since it has come up a number of times.\n\nStarting with background:\n\nPods are scheduled, started, and eventually terminate. They are replaced with new pods by replication controller (or some other controller, once we add more controllers). That's both reality and the model. Today pods are replaced reactively, but eventually it will replace pods proactively for planned moves. We currently do not preempt pods in order to schedule other pods, and likely won't for some time.\n\nCurrently, new pods have no obvious relationship to the pods they replace. They have different names, different uids, different IP addresses, different hostnames (since we set the pod hostname to pod name), and newly initialized volumes.\n\nReplication controllers themselves are not durable objects. They are tied to deployments. New deployments create new replication controllers. This simplifies sophisticated deployment and rollout strategies without making simple scenarios complex. Both rollout tools/components and auto-scaling will deal with groups of replication controllers.\n\nNaming/discovery is addressed using services, DNS, and the Endpoints API. The evolution of these mechanisms is being discussed in #2585.\n\nThis is a flexible model that facilitates transparency, simplifies handling of inevitable distributed-systems scenarios, facilitates high availability, and facilitates dynamic deployment and scaling.\n\nBut the model is not without issues. The main ones are:\n1. Data durability\n2. Self-discovery\n3. Work/role assignment\n\nData durability is being discussed in the persistent storage proposal #3318. We will also need to address it for local storage, but local storage is less relevant to \"migration\", anyway, since it's not feasible to migrate. For remote storage, it will be possible to detach and reattach the devices to new pods/hosts.\n\nSelf-discovery: Pods know their IP addresses, but currently do not know the names nor IPs of services targeting them. This will be solved by the service redesign #2585 and downward API #386.\n\nWork/role assignment: We encourage dynamic role assignment: master election, fine-grain locking, sharding, task queues, pubsub, etc. That said, some servers are \"pet-like\", particularly those requiring large amounts of persistent storage. Many of these are replicated and/or sharded, with application-specific clustering implementations that tie together names/addresses and persistent data. We've discussed a concept tentatively called \"nominal services\" #260 to stably assign names and IP addresses to individual pods, and we aim to address that in the service redesign #2585.\n\nSo, do we need \"pod migration\", and, if so, what should it mean? I think it minimally should mean that the replacement pod has the same hostname, IP address, and storage.\n\nWe should aim to minimize disruption for high-availability servers. We could we do, besides the things planned above?\n- Don't use the pod name as the host name. Associate a name with the IP address instead (e.g., by hashing the address). Pods created by replication controllers aren't currently predictable, so this wouldn't be a regression.\n- Migrate the pod IP address. Currently pod IP addresses are statically partitioned among hosts and are not migratable. This would likely be problematic on some cloud providers with the way we're currently configuring routing, but could be done with an overlay network.\n- Lifecycle hooks pre- and post-migration.\n- Actual live state transfer via [CRIU](http://criu.org/Docker)\n\nWith respect to Kubernetes objects, the \"migrated\" pod would still be a new pod with a new name and uid. The orchestration of the migration would be performed by a controller -- possibly an enhanced replication controller, perhaps in collaboration with a network controller to move the address, similar to the separation of concerns in the persistent storage proposal. During the migration process, the old and new pods would coexist, and that coexistence would be visible to clients of the Kubernetes API, but the application being migrated and its clients would not need to be aware of the migration.\n\n/cc @smarterclayton @thockin @alex-mohr",
+    "comment_text": "@smarterclayton: Yes, a path prefix could work.\n\n@lavalamp: The specific scenario I'm thinking about is killing a pod followed by a new binding to the same host.",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2015-01-29T21:52:50Z",
+    "timestamp": "2014-07-25T03:20:41Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 592
   },
   {
-    "comment_text": "Too much kubectl business logic resides in pkg/kubectl/cmd. I'd like essentially all of kubectl to be callable as a library, and functionality like run-container and rolling-update should be configurable declaratively, as well. \n\nSome of the logic (stop #1535, resize #1629, rolling-update #1743) belongs on the server side, too, but that's a separate issue.\n\nAn example that's close:\nhttps://github.com/GoogleCloudPlatform/kubernetes/blob/master/pkg/kubectl/run.go\nNo mention of cobra, no flags, no reading files/URLs/etc. \n\nAdditional changes I'd like to run.go include accepting its config as an object and/or json (rather than the simple array), and moved to a more generic client directory/package. For generators specifically, we need some sort of plugin mechanism and/or should just make them into simple services (#5280).\n\nExamples that don't obey this principle:\n- updateWithPatch: https://github.com/GoogleCloudPlatform/kubernetes/blob/master/pkg/kubectl/cmd/update.go#L122\n- RunRollingUpdate: https://github.com/GoogleCloudPlatform/kubernetes/blob/master/pkg/kubectl/cmd/rollingupdate.go#L67\n\nAdditionally, for declarative updates (#1702), it needs to be possible to specify the update policy in json, accompanying the objects to be updated.\n\nAt a glance, pkg/client/clientcmd looks like it respects the separation that we should strive for.\n\nRelated: Clients shouldn't be using the internal rep. #3955 #4874 -- only apiserver and kubelet should be using it. Even our controllers should only be using the latest stable API version.\n\nInternally our command-line tool grew more and more functionality, and it became very hard to tease apart. Applications were linking in essentially the whole tool (flags and all) just to use specific bits of it, such as to take a list of objects and send them to the API. \n\nOf course, these principles should be documented somewhere. (Related, but not identical to #6797)\n\n@smarterclayton @lavalamp @ghodss @jlowdermilk @deads2k @ironcladlou @brendandburns @thockin @erictune",
+    "comment_text": "Awesome!",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2015-04-24T21:35:31Z",
+    "timestamp": "2014-12-29T19:20:44Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 2224
   },
   {
-    "comment_text": "PR #9975 added hardcoded protection of the default namespace to the Lifecycle admission controller. This mechanism at least needs to be configurable, since Openshift and Kubernetes have additional infrastructure namespaces they'd like to protect. However, it also needs to be possible to remove the protection to shut down a cluster #4630, without making it susceptible to accidents. One solution would be to add a `protected` field to metadata of any object. `protected: true` would prevent deletion until the object was updated to set `protected: false`. This would also make it straightforward to protect the special Kubernetes services, addons, and other self-hosted components, while still making it possible to update them and to delete all resources during shutdown. \n\ncc @derekwaynecarr @lavalamp",
+    "comment_text": "@smarterclayton Do you think it's a bug or feature that deletion of a service would result in manually created endpoints to be deleted?",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2015-06-22T14:04:07Z",
+    "timestamp": "2015-05-06T02:11:16Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 7821
   },
   {
-    "comment_text": "Writing the new user guide made me think about this.\n\nIt's currently easy to run multiple release tracks (e.g., daily release and weekly release), by just running separate replication controllers indefinitely.\n\nHowever, if someone wants to run a couple canary instances for a while and then roll out the same image to replace the full replica set once it has been sufficiently validated, we don't have direct support for that.\n\nIt is relatively easy to just kill kubectl rolling-update in the middle and resume or rollback later, but only if the rate of the rollout is sufficiently slow and one is watching it closely.\n\nThe simplest solution I can think of is to automate killing kubectl rolling-update: a --canaries=N flag, which would cause it to break out of the update loop after ramping up the new replication controller to N. The rolling update should be resumable just as if it were killed manually, to promote the canary to the current version.\n\ncc @kelseyhightower",
+    "comment_text": "Currently, yes, endpoints must have corresponding services. We could change that in the future and use something like the existence dependence that I proposed to retain the current behavior for endpoints auto-created for services.\n\nI've previously proposed that we replace ResourceLocation with actual endpoints APIs for pods and nodes, in part to facilitate breaking out the proxy functionality. However, I imagined those endpoints would be at different paths in the resource hierarchy.",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2015-07-18T06:11:36Z",
+    "timestamp": "2015-05-06T06:45:18Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 7821
   },
   {
-    "comment_text": "Forked from #1627, #5472, #246, #12201, and other issues.\n\nWe configure Kubernetes components like apiserver and controller-manager with command-line flags currently. Every time we change these flags, we break everyone's turnup automation, at least for anything not in our repo: hosted products, other repos, blog posts, ...\n\nOTOH, the scheduler and kubectl read configuration files. We should be treating all configuration similarly, as versioned APIs, with backward compatibility, deprecation policies, documentation, etc. How we distribute the configuration is a separate issue -- #1627.\n\ncc @davidopp @thockin @dchen1107 @lavalamp",
+    "comment_text": "Thanks. This was listed in #8087, but wasn't prioritized correctly.",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2015-08-05T03:25:15Z",
+    "timestamp": "2015-06-17T20:05:41Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 9966
   },
   {
-    "comment_text": "Capture design discussion from #15350, #341, #951, other PRs, and internal docs.",
-    "file_path": "",
-    "code_context": "",
-    "comment_type": "issue_comment",
+    "comment_text": "PodHost is spec.nodeName in v1.",
+    "file_path": "pkg/client/request.go",
+    "code_context": "@@ -302,45 +312,41 @@ func (v versionToResourceToFieldMapping) filterField(apiVersion, resourceType, f\n }\n \n var fieldMappings = versionToResourceToFieldMapping{\n-\t\"v1beta1\": resourceTypeToFieldMapping{\n+\t\"v1beta3\": resourceTypeToFieldMapping{\n \t\t\"nodes\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField:   \"name\",\n-\t\t\tNodeUnschedulable: \"unschedulable\",\n+\t\t\tObjectNameField:   \"metadata.name\",\n+\t\t\tNodeUnschedulable: \"spec.unschedulable\",\n \t\t},\n \t\t\"minions\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField:   \"name\",\n-\t\t\tNodeUnschedulable: \"unschedulable\",\n+\t\t\tObjectNameField:   \"metadata.name\",\n+\t\t\tNodeUnschedulable: \"spec.unschedulable\",\n \t\t},\n \t\t\"pods\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tPodHost: \"DesiredState.Host\",\n+\t\t\tPodHost: \"spec.host\",\n \t\t},\n \t\t\"secrets\": clientFieldNameToAPIVersionFieldName{\n \t\t\tSecretType: \"type\",\n \t\t},\n \t\t\"serviceAccounts\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField: \"name\",\n-\t\t},\n-\t},\n-\t\"v1beta2\": resourceTypeToFieldMapping{\n-\t\t\"nodes\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField:   \"name\",\n-\t\t\tNodeUnschedulable: \"unschedulable\",\n-\t\t},\n-\t\t\"minions\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField:   \"name\",\n-\t\t\tNodeUnschedulable: \"unschedulable\",\n+\t\t\tObjectNameField: \"metadata.name\",\n \t\t},\n-\t\t\"pods\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tPodHost: \"DesiredState.Host\",\n+\t\t\"endpoints\": clientFieldNameToAPIVersionFieldName{\n+\t\t\tObjectNameField: \"metadata.name\",\n \t\t},\n-\t\t\"secrets\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tSecretType: \"type\",\n-\t\t},\n-\t\t\"serviceAccounts\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField: \"name\",\n+\t\t\"events\": clientFieldNameToAPIVersionFieldName{\n+\t\t\tObjectNameField:              \"metadata.name\",\n+\t\t\tEventReason:                  \"reason\",\n+\t\t\tEventSource:                  \"source\",\n+\t\t\tEventInvolvedKind:            \"involvedObject.kind\",\n+\t\t\tEventInvolvedNamespace:       \"involvedObject.namespace\",\n+\t\t\tEventInvolvedName:            \"involvedObject.name\",\n+\t\t\tEventInvolvedUID:             \"involvedObject.uid\",\n+\t\t\tEventInvolvedAPIVersion:      \"involvedObject.apiVersion\",\n+\t\t\tEventInvolvedResourceVersion: \"involvedObject.resourceVersion\",\n+\t\t\tEventInvolvedFieldPath:       \"involvedObject.fieldPath\",\n \t\t},\n \t},\n-\t\"v1beta3\": resourceTypeToFieldMapping{\n+\t\"v1\": resourceTypeToFieldMapping{",
+    "comment_type": "pr_review",
     "severity": "unknown",
-    "timestamp": "2015-10-12T20:21:50Z",
+    "timestamp": "2015-06-17T20:10:48Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 9966
   },
   {
-    "comment_text": "We need an overall design for how all our resource-management features should interact:\n- horizontal pod autoscaling\n- vertical pod autoscaling (initial and reactive)\n- resource metrics APIs\n- oversubscription\n- scheduling (including taking resource usage into account)\n- QoS\n- out-of-resource killing\n- rescheduling\n\ncc @davidopp @fgrzadkowski @dchen1107 @vishh @derekwaynecarr",
+    "comment_text": "cc @liggitt",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2015-10-14T23:03:25Z",
+    "timestamp": "2015-06-17T20:13:41Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 9966
   },
   {
-    "comment_text": "This was a source of user confusion:\nhttp://stackoverflow.com/questions/34057711/external-ip-is-none-after-expose-my-service/35144573#35144573\n\nIt is not documented in the obvious place:\nhttps://github.com/kubernetes/kubernetes/blob/master/docs/user-guide/services.md#type-loadbalancer",
-    "file_path": "",
-    "code_context": "",
-    "comment_type": "issue_comment",
+    "comment_text": "We should eliminate minions, at least in v1.",
+    "file_path": "pkg/client/request.go",
+    "code_context": "@@ -302,45 +312,41 @@ func (v versionToResourceToFieldMapping) filterField(apiVersion, resourceType, f\n }\n \n var fieldMappings = versionToResourceToFieldMapping{\n-\t\"v1beta1\": resourceTypeToFieldMapping{\n+\t\"v1beta3\": resourceTypeToFieldMapping{\n \t\t\"nodes\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField:   \"name\",\n-\t\t\tNodeUnschedulable: \"unschedulable\",\n+\t\t\tObjectNameField:   \"metadata.name\",\n+\t\t\tNodeUnschedulable: \"spec.unschedulable\",\n \t\t},\n \t\t\"minions\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField:   \"name\",\n-\t\t\tNodeUnschedulable: \"unschedulable\",\n+\t\t\tObjectNameField:   \"metadata.name\",",
+    "comment_type": "pr_review",
     "severity": "unknown",
-    "timestamp": "2016-02-02T03:35:28Z",
+    "timestamp": "2015-06-17T20:14:41Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 9966
   },
   {
-    "comment_text": "To do a rolling update of a ConfigMap, the user needs to create a new ConfigMap, update a Deployment to refer to it, and delete the old ConfigMap once no pods are using it. This is similar to the orchestration Deployment does for ReplicaSets.\r\n\r\nOne solution could be to add a ConfigMap template to Deployment and do the management there.\r\n\r\nAnother could be to support garbage collection of unused ConfigMaps, which is the hard part. That would be useful for Secrets and maybe other objects, also.\r\n\r\ncc @kubernetes/sig-apps-feature-requests",
+    "comment_text": "Tagged with v1.0 because it's part of #7018 that was missed.",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2016-03-02T17:26:01Z",
+    "timestamp": "2015-06-17T20:15:41Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 9966
   },
   {
-    "comment_text": "Once the controllers track creation and deletion of individual objects, they should just cap the number of outstanding actions rather than await all outstanding actions to complete. That would allow new actions to be initiated as previous ones complete, rather than create stair-stepping behavior due to fixed batch sizes.\n\nDeletion tracking is being added by #22579, but robust creation tracking would require pod name generation by the controller.\n\ncc @bprashanth",
-    "file_path": "",
-    "code_context": "",
-    "comment_type": "issue_comment",
+    "comment_text": "Good point. Yes, we should fix those.",
+    "file_path": "pkg/client/request.go",
+    "code_context": "@@ -302,45 +312,41 @@ func (v versionToResourceToFieldMapping) filterField(apiVersion, resourceType, f\n }\n \n var fieldMappings = versionToResourceToFieldMapping{\n-\t\"v1beta1\": resourceTypeToFieldMapping{\n+\t\"v1beta3\": resourceTypeToFieldMapping{\n \t\t\"nodes\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField:   \"name\",\n-\t\t\tNodeUnschedulable: \"unschedulable\",\n+\t\t\tObjectNameField:   \"metadata.name\",\n+\t\t\tNodeUnschedulable: \"spec.unschedulable\",\n \t\t},\n \t\t\"minions\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField:   \"name\",\n-\t\t\tNodeUnschedulable: \"unschedulable\",\n+\t\t\tObjectNameField:   \"metadata.name\",\n+\t\t\tNodeUnschedulable: \"spec.unschedulable\",\n \t\t},\n \t\t\"pods\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tPodHost: \"DesiredState.Host\",\n+\t\t\tPodHost: \"spec.host\",\n \t\t},\n \t\t\"secrets\": clientFieldNameToAPIVersionFieldName{\n \t\t\tSecretType: \"type\",\n \t\t},\n \t\t\"serviceAccounts\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField: \"name\",\n-\t\t},\n-\t},\n-\t\"v1beta2\": resourceTypeToFieldMapping{\n-\t\t\"nodes\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField:   \"name\",\n-\t\t\tNodeUnschedulable: \"unschedulable\",\n-\t\t},\n-\t\t\"minions\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField:   \"name\",\n-\t\t\tNodeUnschedulable: \"unschedulable\",\n+\t\t\tObjectNameField: \"metadata.name\",\n \t\t},\n-\t\t\"pods\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tPodHost: \"DesiredState.Host\",\n+\t\t\"endpoints\": clientFieldNameToAPIVersionFieldName{\n+\t\t\tObjectNameField: \"metadata.name\",\n \t\t},\n-\t\t\"secrets\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tSecretType: \"type\",\n-\t\t},\n-\t\t\"serviceAccounts\": clientFieldNameToAPIVersionFieldName{\n-\t\t\tObjectNameField: \"name\",\n+\t\t\"events\": clientFieldNameToAPIVersionFieldName{\n+\t\t\tObjectNameField:              \"metadata.name\",\n+\t\t\tEventReason:                  \"reason\",\n+\t\t\tEventSource:                  \"source\",\n+\t\t\tEventInvolvedKind:            \"involvedObject.kind\",\n+\t\t\tEventInvolvedNamespace:       \"involvedObject.namespace\",\n+\t\t\tEventInvolvedName:            \"involvedObject.name\",\n+\t\t\tEventInvolvedUID:             \"involvedObject.uid\",\n+\t\t\tEventInvolvedAPIVersion:      \"involvedObject.apiVersion\",\n+\t\t\tEventInvolvedResourceVersion: \"involvedObject.resourceVersion\",\n+\t\t\tEventInvolvedFieldPath:       \"involvedObject.fieldPath\",\n \t\t},\n \t},\n-\t\"v1beta3\": resourceTypeToFieldMapping{\n+\t\"v1\": resourceTypeToFieldMapping{",
+    "comment_type": "pr_review",
     "severity": "unknown",
-    "timestamp": "2016-03-05T22:21:33Z",
+    "timestamp": "2015-06-18T20:00:44Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 9966
   },
   {
-    "comment_text": "There are frequent errors in API field specification, such as:\n- default vs inferred (e.g., `fsType`: https://github.com/kubernetes/kubernetes/blob/master/pkg/api/v1/types.go#L557); note that implicitly inferred is discouraged\n- default vs required\n- required/optional vs omitempty\n- omitempty vs. pointers\n- documentation vs actual defaulting and validation code\n\nFor examples of multiple errors in one type, see:\nhttps://github.com/kubernetes/kubernetes/issues/18885#issuecomment-218376807\n\nOne way to make defaulting and validation less error prone would to be allow them to be specified declaratively, on API fields using tags or comments. Protocol buffers allow literal default values to be specified (though, unlike in Kubernetes, they aren't conveyed on the wire; non-literals, such as fields defaulted from other fields, can't be specified this way). Declarative validation, where possible (i.e., simple rules), was previously requested by #8116. \n\nSince omitempty and pointer rules are apparently non-obvious, I think we should require specification of required vs optional and then either verify that the other properties are consistent or autogenerate them. \n\nAuto-fixing field names in documentation is covered by #19319.\n\ncc @lavalamp @thockin @kubernetes/sig-api-machinery",
+    "comment_text": "cc @krousey, @JanetKuo, and @mikedanese in case they are interested",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2016-05-11T07:52:12Z",
+    "timestamp": "2015-07-16T22:36:39Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 11400
   },
   {
-    "comment_text": "We discover bugs in kubectl apply on a field-by-field basis: #26229, #23551.\n\nWe don't have rigorous testing of the diff and patch code, nor of the API spec itself. There are many known problems, such as lack of ability to distinguish unset fields from Go default values for non-pointer primitive fields.\n\nWe should develop a random fuzz tester for kubectl apply.\n\ncc @ghodss @kubernetes/kubectl",
+    "comment_text": "So this should fix #11385",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2016-05-25T00:12:28Z",
+    "timestamp": "2015-07-16T22:37:37Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 11400
   },
   {
-    "comment_text": "Currently, building a general-purpose orchestrator for our API is more challenging than it should be.\r\n\r\nSome problems (probably not exhaustive):\r\n- There's no general way to determine when applications and/or services are \"ready\", such as for cases where applications need other applications to be up in order to start properly, which apparently is the case for some non-cloud-native applications (#1768, kubernetes/kubernetes#29453). Service-level readiness would be useful for a number of purposes. Disruption budget is related.\r\n- There's no general way to determine when operations, such as cascading deletion (#29891), scaling, or deployment, are \"done\". Deletion is a special case, but most other cases amount to observed state matching desired state (or desired state has subsequently changed again). This is related to generation and observedGeneration.\r\n- There's no general way to determine when operations, such as deployment, \"fail\". In most cases, I think this amounts to inability to achieve the desired state within an acceptable amount of time.\r\n- There's no general way to hook creation and deletion (though finalizers should address the latter) kubernetes/kubernetes#3585, nor other resource lifecycle events kubernetes/kubernetes#3692.\r\n- There's no general way to query resource inter-dependencies.\r\n- There's no general way to shutdown a cluster without leaking external resources (e.g., external load balancers).\r\n\r\nSee also:\r\nkubernetes/kubernetes#29453\r\nkubernetes/kubernetes#1899\r\nkubernetes/kubernetes#5164\r\nkubernetes/website#41954\r\nkubernetes/kubernetes#4630\r\nkubernetes/kubernetes#15203\r\nkubernetes/kubernetes#29891\r\nkubernetes/kubernetes#14961\r\nkubernetes/kubernetes#14181\r\nkubernetes/kubernetes#1503\r\nkubernetes/kubernetes#32157\r\nkubernetes/kubernetes#38216\r\n\r\ncc @lavalamp @pwittrock @smarterclayton",
+    "comment_text": "Are we running the munger over /examples yet?",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2016-10-07T22:22:44Z",
+    "timestamp": "2015-07-16T22:38:07Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 11400
   },
   {
-    "comment_text": "The API has a number of references to other resources that don't specify full details needed to construct API calls (e.g., `secretName`) without specific, detailed knowledge of the API. Clients need to be able to resolve dependencies generically. \r\n\r\nThere are a few possible approaches. One could be to augment the OpenAPI spec. Another could be to provide a subresource or alternative representation (#33900) to enumerate fully qualified dependencies.\r\n\r\nSee also #3676.",
+    "comment_text": "``````\nexamples/cassandra/README.md:You may also note that we are setting some Cassandra parameters (```MAX_HEAP_SIZE``` and ```HEAP_NEWSIZE```) and adding information about the [namespace](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/namespaces.md).  We also tell Kubernetes that the container exposes both the ```CQL``` and ```Thrift``` API ports.  Finally, we tell the cluster manager that we need 0.5 cpu (0.5 core).\nexamples/guestbook/README.md:The services in a Kubernetes cluster are discoverable inside other containers [via environment variables](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/services.md#environment-variables).\nexamples/guestbook/README.md:An alternative is to use the [cluster's DNS service](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/services.md#dns), if it has been enabled for the cluster.  This lets all pods do name resolution of services automatically, based on the service name.\nexamples/guestbook/README.md:More generally, Kubernetes supports two ways of exposing a service onto an external IP address: `NodePort`s and `LoadBalancer`s , as described [here](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/services.md#external-services).\nexamples/k8petstore/README.md:In the mean time, because the public IP will be deprecated in Kubernetes v1, we provide other 2 scripts k8petstore-loadbalancer.sh and k8petstore-nodeport.sh. As the names suggest, they rely on LoadBalancer and NodePort respectively. More details can be found [here](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/services.md#external-services). \nexamples/k8petstore/k8petstore-loadbalancer.sh:#This script assumes the cloud provider is able to create a load balancer. If this not the case, you may want to check out other ways to make the frontend service accessible from outside (https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/services.md#external-services)\n``````",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2016-12-06T21:43:43Z",
+    "timestamp": "2015-07-16T22:38:23Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 11400
   },
   {
-    "comment_text": "The workload controllers now report replicas, ready replicas, and available replicas. It would be useful for Service.Status to contain similar information. The information could be easily aggregated from Endpoints. We can't implement available replicas until/unless minReadySeconds moves into Pod/Kubelet, but we could report total and ready replicas. That would make it easier to detect common issues such as mismatched selector and labels and determining when one can expect a service to be reachable.\r\n\r\nI thought there was an issue about this, but only found ones relating to cloudprovider LB status.\r\n\r\n/kind feature\r\n/sig network\r\n\r\ncc @kubernetes/sig-network-feature-requests @kubernetes/sig-apps-feature-requests",
-    "file_path": "",
-    "code_context": "",
-    "comment_type": "issue_comment",
+    "comment_text": "That's unfortunate. Maybe just make the text not match the pattern?",
+    "file_path": "docs/devel/cli-roadmap.md",
+    "code_context": "@@ -23,9 +23,9 @@ certainly want the docs that go with that version.</h1>\n # Kubernetes CLI/Configuration Roadmap\n \n See also issues with the following labels:\n-* [area/config-deployment](https://github.com/GoogleCloudPlatform/kubernetes/labels/area%2Fconfig-deployment)\n-* [component/CLI](https://github.com/GoogleCloudPlatform/kubernetes/labels/component%2FCLI)\n-* [component/client](https://github.com/GoogleCloudPlatform/kubernetes/labels/component%2Fclient)\n+* [/GoogleCloudPlatform/kubernetes/labels/area/config-deployment](https://github.com/GoogleCloudPlatform/kubernetes/labels/area/config-deployment)\n+* [/GoogleCloudPlatform/kubernetes/labels/component/CLI](https://github.com/GoogleCloudPlatform/kubernetes/labels/component/CLI)\n+* [/GoogleCloudPlatform/kubernetes/labels/component/client](https://github.com/GoogleCloudPlatform/kubernetes/labels/component/client)",
+    "comment_type": "pr_review",
     "severity": "unknown",
-    "timestamp": "2017-10-26T21:30:10Z",
+    "timestamp": "2015-07-16T23:21:17Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 11400
   },
   {
-    "comment_text": "Please see:\r\nhttps://github.com/kubernetes/kubernetes/tree/master/third_party/forked/golang",
+    "comment_text": "I saw this in another PR. Code links aren't going to work on gh_pages. I think we should punt on that, though. I don't see a good solution.",
+    "file_path": "docs/design/event_compression.md",
+    "code_context": "@@ -47,7 +47,7 @@ Instead of a single Timestamp, each event object [contains](https://github.com/G\n \n Each binary that generates events:\n  * Maintains a historical record of previously generated events:\n-   * Implemented with [\"Least Recently Used Cache\"](https://github.com/golang/groupcache/blob/master/lru/lru.go) in [```pkg/client/record/events_cache.go```](https://github.com/GoogleCloudPlatform/kubernetes/tree/master/pkg/client/record/events_cache.go).\n+   * Implemented with [\"Least Recently Used Cache\"](https://github.com/golang/groupcache/blob/master/lru/lru.go) in [```pkg/client/record/events_cache.go```](../../pkg/client/record/events_cache.go).",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2015-07-16T23:21:56Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 11400
+  },
+  {
+    "comment_text": "Is running the munger a second time going to shorten this to `../user-guide`?",
+    "file_path": "docs/getting-started-guides/aws.md",
+    "code_context": "@@ -93,10 +93,10 @@ sudo cp kubernetes/platforms/darwin/amd64/kubectl /usr/local/bin/kubectl\n sudo cp kubernetes/platforms/linux/amd64/kubectl /usr/local/bin/kubectl\n ```\n \n-An up-to-date documentation page for this tool is available here: [kubectl manual](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/kubectl.md)\n+An up-to-date documentation page for this tool is available here: [kubectl manual](../../docs/user-guide/kubectl/kubectl.md)",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2015-07-16T23:23:09Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 11400
+  },
+  {
+    "comment_text": "LGTM",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2018-04-03T16:51:03Z",
+    "timestamp": "2015-07-16T23:26:08Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 11400
+  },
+  {
+    "comment_text": "ok to merge whenever @lavalamp says he's done with it",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2015-07-16T23:29:31Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 11400
+  },
+  {
+    "comment_text": "Merging",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2015-07-17T05:50:11Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 11400
+  },
+  {
+    "comment_text": "This makes it impossible to create multiple versions in the same group.",
+    "file_path": "docs/design/extending-api.md",
+    "code_context": "@@ -113,18 +113,15 @@ For example, if a user creates:\n \n ```yaml\n metadata:\n-  name: cron-tab.example.com\n+  name: cron-tab.stable.example.com\n apiVersion: experimental/v1alpha1\n kind: ThirdPartyResource\n description: \"A specification of a Pod to run on a cron style schedule\"\n-versions:\n-  - name: stable/v1\n-  - name: experimental/v2\n+version: v1",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2015-10-02T17:54:20Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 14522
+  },
+  {
+    "comment_text": "@lavalamp Was that intentional, since there is no conversion between versions?",
+    "file_path": "docs/design/extending-api.md",
+    "code_context": "@@ -113,18 +113,15 @@ For example, if a user creates:\n \n ```yaml\n metadata:\n-  name: cron-tab.example.com\n+  name: cron-tab.stable.example.com\n apiVersion: experimental/v1alpha1\n kind: ThirdPartyResource\n description: \"A specification of a Pod to run on a cron style schedule\"\n-versions:\n-  - name: stable/v1\n-  - name: experimental/v2\n+version: v1",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2015-10-02T17:56:33Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 14522
+  },
+  {
+    "comment_text": "IIRC the nested struct was used in order to permit additional info to be added for each version in the future.",
+    "file_path": "docs/design/extending-api.md",
+    "code_context": "@@ -113,18 +113,17 @@ For example, if a user creates:\n \n ```yaml\n metadata:\n-  name: cron-tab.example.com\n+  name: cron-tab.stable.example.com\n apiVersion: experimental/v1alpha1\n kind: ThirdPartyResource\n description: \"A specification of a Pod to run on a cron style schedule\"\n versions:\n-  - name: stable/v1\n-  - name: experimental/v2\n+- v1",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2015-10-02T21:37:46Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 14522
+  },
+  {
+    "comment_text": "cc @erictune",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2015-10-02T21:39:00Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 15004
+  },
+  {
+    "comment_text": "lowercase",
+    "file_path": "docs/design/extending-api.md",
+    "code_context": "@@ -113,18 +113,17 @@ For example, if a user creates:\n \n ```yaml\n metadata:\n-  name: cron-tab.example.com\n+  name: cron-tab.stable.example.com\n apiVersion: experimental/v1alpha1\n kind: ThirdPartyResource\n description: \"A specification of a Pod to run on a cron style schedule\"\n versions:\n-  - name: stable/v1\n-  - name: experimental/v2\n+- Name: v1\n+- Name: v2",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2015-10-03T05:55:42Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 14522
+  },
+  {
+    "comment_text": "@brendandburns What is the current status of the ThirdPartyResource implementation? What works, what doesn't?",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2015-10-07T18:24:28Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 14522
+  },
+  {
+    "comment_text": "Tip: It's possible to assign the PR when creating the PR.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2015-10-08T00:26:11Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 15263
+  },
+  {
+    "comment_text": "Thanks. LGTM.\n\nIf ThirdPartyResource is a registered API, it more or less works according to the previous spec, and we don't make it conform to this spec, then we shouldn't cherrypick this.\n\nIf ThirdPartyResource doesn't really work, even according to the previous spec, then we should unregister it from the API.\n\nIf ThirdPartyResource isn't registered, then we should cherrypick this to let people know what our current thinking is.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2015-10-08T20:20:15Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 14522
+  },
+  {
+    "comment_text": "Rerunning Shippable. It was an integration test flake.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2015-10-08T20:21:32Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 14522
+  },
+  {
+    "comment_text": "Assigned to @erictune to reconcile with #15339",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2015-10-09T07:21:06Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 15004
+  },
+  {
+    "comment_text": "Let's hold off for now, until we assess the impact on the other client languages mentioned.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2015-10-12T18:19:21Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 15263
+  },
+  {
+    "comment_text": "http://issues.k8s.io/12611",
+    "file_path": "docs/proposals/maintenance.md",
+    "code_context": "@@ -0,0 +1,179 @@\n+<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->\n+\n+<!-- BEGIN STRIP_FOR_RELEASE -->\n+\n+<img src=\"http://kubernetes.io/img/warning.png\" alt=\"WARNING\"\n+     width=\"25\" height=\"25\">\n+<img src=\"http://kubernetes.io/img/warning.png\" alt=\"WARNING\"\n+     width=\"25\" height=\"25\">\n+<img src=\"http://kubernetes.io/img/warning.png\" alt=\"WARNING\"\n+     width=\"25\" height=\"25\">\n+<img src=\"http://kubernetes.io/img/warning.png\" alt=\"WARNING\"\n+     width=\"25\" height=\"25\">\n+<img src=\"http://kubernetes.io/img/warning.png\" alt=\"WARNING\"\n+     width=\"25\" height=\"25\">\n+\n+<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>\n+\n+If you are using a released version of Kubernetes, you should\n+refer to the docs that go with that version.\n+\n+<strong>\n+The latest release of this document can be found\n+[here](http://releases.k8s.io/release-1.1/docs/proposals/maintenance.md).\n+\n+Documentation for other releases can be found at\n+[releases.k8s.io](http://releases.k8s.io).\n+</strong>\n+--\n+\n+<!-- END STRIP_FOR_RELEASE -->\n+\n+<!-- END MUNGE: UNVERSIONED_WARNING -->\n+\n+# Node Maintenance\n+\n+## Abstract\n+\n+A proposal for implementing safe node maintenance primitives, in stages.\n+\n+## Overview\n+\n+Nodes need periodic maintenance, most of which require partial or total\n+unavailability to pods.  The cluster admin would like for this to happen (1)\n+automatically, and (2) respecting any service quality constraints.\n+\n+Examples of maintenance:\n+\n+- unmount/remount filesystems to change mkfs params\n+- remove from service but leave up for debugging\n+- reboot for kernel or image upgrade\n+- remove from service for hardware repair\n+- remove from service permanently\n+\n+## Service Quality\n+\n+This may be thought of as the cluster admin offering a guarantee or SLO, or as the\n+user specifying their requirements.  Around evictions, there are typically three\n+parameters:\n+\n+- time between evictions (of pods in the same replica set)\n+- minimum shard strength (minimum fraction of pods healthy)\n+- eviction notice\n+\n+## Implementations\n+\n+In order of increasing complexity (and benefit).\n+\n+### Drain one node\n+\n+This is implemented in https://github.com/kubernetes/kubernetes/pull/16698\n+\n+### One-shot drain of multiple nodes\n+\n+In this case, we try to meet some specific service goals specified by the admin\n+on the command line.  The specification of these parameters only when we run the\n+tool lets us provide the possibility of safety while avoiding questions of where\n+to configure and store such specification (treated further down).\n+\n+```\n+kubectl drain \\\n+  --min-shard-strength=0.75 \\\n+  --min-seconds-between-evictions=900 \\\n+  --grace=900 $nodes\n+```\n+\n+This would still be pretty simple.  We offer no guarantees about safety in the\n+face of crashes or restarts, but we do meet the needs of admins who want\n+something more sophisticated than `sleep`.\n+\n+### Implementation of the above as a controller\n+\n+The parameters of a specific lame, drain, or unlame request could be pushed to\n+the API server as a drain object.  The drain controller would have to manage\n+multiple drains in flight at once.  If the drains have differing parameters,\n+then more aggressive drains would generally starve safer ones.  While this could\n+be a useful feature in emergencies, it will be a lot easier to reason about\n+multiple drains in progress if they all share the same parameters, which would\n+be configured via kube-env and would represent the cluster admin's SLO.\n+\n+The drain object would thus look something like this\n+\n+```\n+type DrainSpec struct {\n+  LameNodes    PodList\n+  RemoveNodes  PodList\n+  AddNodes     PodList\n+  GracePeriod  int\n+}\n+```\n+\n+A drain object would work much like a deployment.  A drain controller would\n+watch for drain objects and, within constraints, work toward the desired end\n+state.  Nodes in `LameNodes` would merely be lamed, nodes is `RemoveNodes` would\n+be drained according to the given parameters, and nodes in `AddNodes` would be\n+undrained.  The object would be rejected if the sets overlap at all.  The action\n+of the drain controller can be paused or stopped by deleting the drain object,\n+and restarted by re-posting it.\n+\n+Undo would be trickier, but a clever client could be written such that it\n+records the starting state of all the nodes and is able to send a reversing\n+drain request.\n+\n+A central drain controller would have several advantages: safe restarts and the\n+ability to react to other events in order to preserve the desired SLO.  For\n+example, if a machine not in the list of RemoveNodes crashes and takes out other\n+pods in replication sets also impacted by the drain, it can hold off on\n+evictions impacting that replication set until MinSecondsBetweenEvictions and\n+MinShardStrength are OK again.\n+\n+## Implementation of safety logic\n+\n+The implementation is the same whether there is one drain in flight or several.\n+The drain agent (either kubectl or the drain controller) must watch for\n+replication controllers and pods, and it will watch all pods to notice any time\n+there is a disruption to a ReplicaSet.  Because there is no reliable mechanism\n+to replay past events, when the controller restarts, it must wait until it\n+builds up enough history to establish that it can enforce the safety\n+constraints.  The standard loop on draining machines will be:\n+\n+- Is it safe to perform any evictions now?  If so, do them.\n+- Are any machines empty?  If so mark them done.\n+- Are any drains done?  If so mark them done.\n+- Calculate the soonest we can do another eviction.\n+- Sleep until then, or until we receive a watch update.\n+\n+## Future\n+\n+### Varying SLOs\n+\n+We could implement multiple SLOs, either by allowing the cluster admin to specify\n+choices or by allowing this to be specified in the ReplicaSet or referring to\n+the similar parameters already present in Deployment.  I believe we should offer\n+this safety to pods regardless of whether they're managed by Deployment or not,\n+so I don't think Deployment is the right place to pull this from.  Rather, when\n+a sketch for multiple or parameterized SLOs as a feature is present, we should",
+    "comment_type": "pr_review",
+    "severity": "unknown",
+    "timestamp": "2015-11-21T00:18:22Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 17393
+  },
+  {
+    "comment_text": "Reassigning to @davidopp for delegation.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2016-01-04T16:33:48Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 19108
+  },
+  {
+    "comment_text": "Is this any different than `kubectl get -w deployment/mydep`?\n\nIf not, we could wait and add something more customized in 1.3.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2016-01-22T05:04:43Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 19946
+  },
+  {
+    "comment_text": "I'd like to wrap this up. Reassigning to myself to take a look, since I'm also reviewing #18263.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2016-01-22T17:36:12Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 17393
+  },
+  {
+    "comment_text": "Ah, this is mostly about SLOs. Ok, transferring back to @davidopp for now.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2016-01-22T17:54:04Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 17393
+  },
+  {
+    "comment_text": "I'm going to close this to get it off my radar. It can be reopened after we decided what we want to do here.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2016-01-30T00:04:25Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 19946
+  },
+  {
+    "comment_text": "cc @caesarxuchao",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2016-11-02T20:27:18Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 34259
+  },
+  {
+    "comment_text": "I also don't understand why adding tolerations to pending pods would be a problem. It doesn't seem a useful bait-and-switch attack, since adding tolerations would enable scheduling to more nodes, and eventually we plan to add enforcement in Kubelet.\r\n\r\nI agree we'll eventually allow more in-place pod updates, such as for resources:\r\nhttps://github.com/kubernetes/kubernetes/issues/5774\r\n\r\n@davidopp When did we add the PodScheduled condition? Is that set for DaemonSet pods? For pods that set nodeName via some other means?",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2017-02-22T08:08:07Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 41818
+  },
+  {
+    "comment_text": "@davidopp Did we consider design alternatives that would not require updating existing pods in order to roll out new taints?",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2017-02-23T17:51:16Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 41818
   },
   {
     "comment_text": "Thanks!\r\n\r\nI looked at the test PR kubernetes/kubernetes#60331.\r\n\r\nPods are a bit tricky due to deletion grace period. Was pod chosen deliberately for that reason? I'd think an inert object in the Nucleus like a ConfigMap or Event would be more straightforward.\r\n\r\nAlso, while testing the basic operations is a reasonable start, I'd like to ensure we test \"sync and tail\" resumption at a specific resourceVersion.\r\n\r\ncc @kubernetes/sig-api-machinery-api-reviews @kubernetes/sig-api-machinery-pr-reviews",
@@ -216,6 +456,46 @@
     "comment_type": "issue_comment",
     "severity": "unknown",
     "timestamp": "2018-04-12T14:09:08Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 61424
+  },
+  {
+    "comment_text": "cc @kubernetes/sig-architecture-pr-reviews @kubernetes/sig-architecture-api-reviews",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2018-04-12T14:14:32Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 61424
+  },
+  {
+    "comment_text": "@wojtek-t Thanks for volunteering to take a look at the watch test. I'm happy to iterate if we think the current test is a reasonable MVP, but would like to ensure that the exposed etcd-dependent behaviors are adequately tested. (But not the things we tell users not to depend on, such as resourceVersion sequencing.)",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2018-04-12T16:36:15Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 61424
+  },
+  {
+    "comment_text": "cc @smarterclayton",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2018-05-31T23:00:12Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 61424
+  },
+  {
+    "comment_text": "In the future, please write e2e tests first, and create a PR later to add the test to conformance, once it proves stable. If this test proves to be flaky, it will need to be removed from the conformance suite.\r\n\r\nThat approach also decouples the production of useful tests from their promotion to conformance.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2018-05-31T23:05:37Z",
     "reviewer_username": "bgrant0607",
     "pr_number": 61424
   },
@@ -230,13 +510,43 @@
     "pr_number": 61424
   },
   {
-    "comment_text": "Sorry that I haven't had time to fully read this thread and comment in detail, but let's please not overly constrain the API's semantics. Many of the current behaviors are accidentally inherited from etcd rather than intentional. For instance, the resourceVersion is/was intended to be an opaque value, not something that could be used in relative comparisons in clients. \r\n\r\nCertainly we should not expose a globally consistent sequencer. We've tried to ensure that different storage instances could be used for at least different resource types, which we've taken advantage of for Event and for aggregated APIs. I imagine we'll also need to support storage and controller sharding at some point, and may need to horizontally scale apiservers independent of etcd instances.\r\n\r\nWe need a client-instance-specific bookmark that ensures at-least-once delivery of watch events (or otherwise forces a re-GET) and a per-resource-instance sequencer that ensures clients with cached state don't regress to prior states in the case that events are repeated, such as when a client reconnects to another apiserver replica or an intermediary, such as a proxy.\r\n\r\nref kubernetes/website#41954",
+    "comment_text": "@liggitt Could you please start a thread on kubernetes-sig-architecture about the feature gate. We should make a decision and document it.\r\n\r\nThanks.",
     "file_path": "",
     "code_context": "",
     "comment_type": "issue_comment",
     "severity": "unknown",
-    "timestamp": "2019-02-19T20:19:59Z",
+    "timestamp": "2018-08-24T17:10:27Z",
     "reviewer_username": "bgrant0607",
-    "pr_number": null
+    "pr_number": 67255
+  },
+  {
+    "comment_text": "I am in favor also.\r\n\r\nWe need to totally rethink how to support this use case.",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2019-02-06T19:54:31Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 73787
+  },
+  {
+    "comment_text": "@BenTheElder will this PR be open forever?",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2019-08-07T21:18:37Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 46662
+  },
+  {
+    "comment_text": "Thanks, @dims. I'm happy to move to emeritus, at least for now, since I can't respond in a timely fashion to review/approval requests.\r\n\r\nI wonder if this will let me approve since I won't be in the future approval list. :-)\r\n\r\n/lgtm\r\n/approve",
+    "file_path": "",
+    "code_context": "",
+    "comment_type": "issue_comment",
+    "severity": "unknown",
+    "timestamp": "2020-08-04T01:51:31Z",
+    "reviewer_username": "bgrant0607",
+    "pr_number": 93665
   }
 ]

@@ -15,6 +15,7 @@ import json
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -128,7 +129,7 @@ def _extract_themes(comments: list[str], max_themes: int = 5) -> list[dict[str, 
 
 def build_expertise_index(
     profile_name: str,
-    raw_items: list[dict],
+    raw_items: list[dict[str, Any]],
     repo: str,
     min_comments: int = 3,
     max_quotes_per_dir: int = 5,
@@ -140,7 +141,7 @@ def build_expertise_index(
     *min_comments* comments.
     """
     # Group comments by directory
-    dir_comments: dict[str, list[dict]] = defaultdict(list)
+    dir_comments: dict[str, list[dict[str, Any]]] = defaultdict(list)
     total = 0
 
     for item in raw_items:
@@ -305,7 +306,9 @@ def format_expertise_context(entries: list[ExpertiseEntry], max_chars: int = 300
         if remaining <= 0:
             break
 
-        theme_str = ", ".join(t["theme"] for t in entry.themes[:3]) if entry.themes else "general"
+        theme_str = (
+            ", ".join(str(t["theme"]) for t in entry.themes[:3]) if entry.themes else "general"
+        )
         severity_str = ", ".join(
             f"{k}: {v}"
             for k, v in sorted(entry.severity_distribution.items(), key=lambda x: -x[1])[:3]

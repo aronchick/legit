@@ -1,0 +1,156 @@
+{
+  "profile_name": "mitchellh",
+  "entries": {
+    "ghostty-org/ghostty:src/": {
+      "repo": "ghostty-org/ghostty",
+      "dir_path": "src/",
+      "comment_count": 8,
+      "severity_distribution": {
+        "observation": 8
+      },
+      "themes": [
+        {
+          "theme": "error handling",
+          "frequency": 5
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "If we need specifically macOS:\r\n\r\n```c\r\n#if defined(__APPLE__)\r\n  #include <TargetConditionals.h>\r\n  #if TARGET_OS_MAC\r\n    #define PLATFORM_MACOS 1\r\n  #endif\r\n#elif defined(__linux__)\r\n  #define PLATFORM_LINUX 1\r\n#elif defined(__FreeBSD__)\r\n  #define PLATFORM_FREEBSD 1\r\n#else\r\n  #error \"Unsupported",
+          "file": "src/pty.c",
+          "date": "2026-03-20T14:08:19Z"
+        },
+        {
+          "text": "I think we can use standard clang macros for this, I believe Zig supports them:\n\n```c\n#if defined(__APPLE__)\n  // Apple platforms\n#elif defined(__linux__)\n  // Linux\n#elif defined(__FreeBSD__)\n  // FreeBSD\n#else\n  #error \"Unsupported platform\"\n#endif\n```",
+          "file": "src/pty.c",
+          "date": "2026-03-20T14:07:04Z"
+        },
+        {
+          "text": "I still don't like this, is this really necessary? Why can't the GTK side cone the config and override this on the config structure itself? That's what apprt/embedded (for macOS) does.",
+          "file": "src/Surface.zig",
+          "date": "2026-03-04T19:14:12Z"
+        },
+        {
+          "text": "We should gate this at the apprt, not in the core. We still want progress reports to be sent to the apprt, but the apprt should respect the style of how it is shown.",
+          "file": "src/Surface.zig",
+          "date": "2026-03-10T16:00:34Z"
+        },
+        {
+          "text": "Another one!! Holy cow you copy and pasted this thing everywhere lmao.",
+          "file": "src/pty.zig",
+          "date": "2026-03-19T15:50:15Z"
+        }
+      ],
+      "last_activity": "2026-03-20T14:08:19Z"
+    },
+    "ghostty-org/ghostty:src/apprt/gtk/class/": {
+      "repo": "ghostty-org/ghostty",
+      "dir_path": "src/apprt/gtk/class/",
+      "comment_count": 3,
+      "severity_distribution": {
+        "observation": 2,
+        "suggestion": 1
+      },
+      "themes": [
+        {
+          "theme": "code organization",
+          "frequency": 2
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "We can just expose a getter for this instead of using getProperty, we can do this all via Zig without dealing with the GObject system (see other getters, even when they do both the Zig-only one is exposed). For things like primitives it's usually much easier and more ergonomic. :)",
+          "file": "src/apprt/gtk/class/surface.zig",
+          "date": "2026-03-08T14:40:01Z"
+        },
+        {
+          "text": "I'd toss all this memory management and create an arena for all this. The config structures don't really expect free-ability (although you added it for Command). But there's enough happening here I'd just grab an arena and free it at once.",
+          "file": "src/apprt/gtk/class/application.zig",
+          "date": "2026-03-04T21:39:14Z"
+        },
+        {
+          "text": "We should probably move this to below the timer removal and also ensure that the progress bar gets removed too (if it might exist). That way this behaves better with live config reload.",
+          "file": "src/apprt/gtk/class/surface.zig",
+          "date": "2026-03-11T02:34:08Z"
+        }
+      ],
+      "last_activity": "2026-03-11T02:34:08Z"
+    },
+    "ghostty-org/ghostty:src/apprt/gtk/winproto/wayland/": {
+      "repo": "ghostty-org/ghostty",
+      "dir_path": "src/apprt/gtk/winproto/wayland/",
+      "comment_count": 4,
+      "severity_distribution": {
+        "observation": 3,
+        "praise": 1
+      },
+      "themes": [
+        {
+          "theme": "documentation",
+          "frequency": 1
+        },
+        {
+          "theme": "code organization",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "We don't really do this comment marking style anywhere in this codebase. I'm not generally against it but stylistically its not idiomatic within this repo so I'd say we drop it.",
+          "file": "src/apprt/gtk/winproto/wayland/Globals.zig",
+          "date": "2026-03-16T16:36:31Z"
+        },
+        {
+          "text": "You don't have to but if you wanted to you could really clean this up with an `inline` and then on the comptime type having a compline function to return the listener pointer.",
+          "file": "src/apprt/gtk/winproto/wayland/Globals.zig",
+          "date": "2026-03-16T16:37:20Z"
+        },
+        {
+          "text": "Either copy it or just remove it, I don't think there's so much in here that we need it. Most other large files don't at all (its fairly obvious from a simple decl list)",
+          "file": "src/apprt/gtk/winproto/wayland/Globals.zig",
+          "date": "2026-03-16T17:13:11Z"
+        }
+      ],
+      "last_activity": "2026-03-16T17:13:11Z"
+    },
+    "ghostty-org/ghostty:src/build/": {
+      "repo": "ghostty-org/ghostty",
+      "dir_path": "src/build/",
+      "comment_count": 4,
+      "severity_distribution": {
+        "observation": 3,
+        "praise": 1
+      },
+      "themes": [
+        {
+          "theme": "performance",
+          "frequency": 1
+        }
+      ],
+      "example_quotes": [
+        {
+          "text": "We can avoid this whole switch and unconditionally do it if we wrap the C file in an `#ifdef`, which I think would still be cleaner.",
+          "file": "src/build/SharedDeps.zig",
+          "date": "2026-03-20T14:05:16Z"
+        },
+        {
+          "text": "Ooooh I wonder if this will work robustly or if we need to use our pkg/apple_sdk package here. Let's just see from the CI...",
+          "file": "src/build/SharedDeps.zig",
+          "date": "2026-03-20T15:46:17Z"
+        },
+        {
+          "text": "Yeah no problem, if it works that's great.",
+          "file": "src/build/SharedDeps.zig",
+          "date": "2026-03-20T17:19:28Z"
+        },
+        {
+          "text": "This should be b.allocator I think.",
+          "file": "src/build/GhosttyLib.zig",
+          "date": "2026-03-26T14:17:13Z"
+        }
+      ],
+      "last_activity": "2026-03-26T14:17:13Z"
+    }
+  },
+  "total_comments_analyzed": 37
+}

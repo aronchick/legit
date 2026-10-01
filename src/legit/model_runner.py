@@ -9,9 +9,13 @@ import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable
+from typing import Any
 
 import litellm
-from litellm import CustomLLM, ModelResponse
+from httpx import Timeout
+from litellm import ModelResponse
+from litellm.exceptions import BadRequestError
+from litellm.llms.custom_llm import CustomLLM
 from litellm.types.utils import Choices, Message
 from pydantic import BaseModel, ValidationError
 
@@ -80,17 +84,14 @@ def _extract_json(text: str) -> str:
 
     # Fall back to outermost braces / brackets — whichever opens first, so a
     # top-level JSON array isn't shredded into its first element object.
-    candidates = [(text.find(c), c, cl) for c, cl in [("{", "}"), ("[", "]")]]
-    candidates = sorted((s, c, cl) for s, c, cl in candidates if s != -1)
-    for start, open_ch, close_ch in candidates:
-        depth = 0
-        for i in range(start, len(text)):
-            if text[i] == open_ch:
-                depth += 1
-            elif text[i] == close_ch:
-                depth -= 1
-                if depth == 0:
-                    return text[start : i + 1]
+    decoder = json.JSONDecoder()
+    starts = sorted(pos for pos in (text.find("{"), text.find("[")) if pos != -1)
+    for start in starts:
+        try:
+            _, end = decoder.raw_decode(text[start:])
+            return text[start : start + end]
+        except json.JSONDecodeError:
+            continue
     return text.strip()
 
 
@@ -113,7 +114,7 @@ def _run_claude(
     """
     cli = _check_cli("claude")
 
-    cmd = [cli, "--print", "--output-format", "text"]
+    cmd = [cli, "--print", "--output-format", "json", "--tools", "", "--no-session-persistence"]
     if model_name:
         cmd.extend(["--model", model_name])
 
@@ -132,7 +133,20 @@ def _run_claude(
         logger.error("claude CLI failed (rc=%d): %s", result.returncode, stderr)
         raise RuntimeError(f"claude CLI exited with code {result.returncode}: {stderr}")
 
-    return result.stdout.strip()
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Claude CLI returned invalid JSON metadata") from exc
+    if not isinstance(payload, dict) or payload.get("is_error"):
+        raise RuntimeError("Claude CLI did not return a successful result")
+    model_usage = payload.get("modelUsage")
+    if not isinstance(model_usage, dict) or not model_usage:
+        raise RuntimeError("Claude CLI result is missing actual model usage metadata")
+    output = payload.get("result")
+    if not isinstance(output, str) or not output.strip():
+        raise RuntimeError("Claude CLI result is missing generated text")
+    logger.info("Claude CLI reported model usage: %s", ", ".join(sorted(model_usage)))
+    return output.strip()
 
 
 def _run_gemini(
@@ -220,11 +234,11 @@ def _run_api(
 
     import litellm
 
-    kwargs: dict = {}
+    kwargs: dict[str, Any] = {}
     if api_base:
         kwargs["api_base"] = api_base
 
-    call_kwargs: dict = {
+    call_kwargs: dict[str, Any] = {
         "model": model_name or "gemini/gemini-3.1-pro-preview",
         "messages": [{"role": "user", "content": prompt}],
         "timeout": timeout,
@@ -238,7 +252,7 @@ def _run_api(
     }
     try:
         resp = litellm.completion(temperature=temperature, **call_kwargs)
-    except litellm.BadRequestError as exc:
+    except BadRequestError as exc:
         # drop_params only strips params litellm's registry knows a model
         # rejects; brand-new models aren't in the registry yet, so the API
         # itself refuses. Retry once at the provider default.
@@ -246,7 +260,7 @@ def _run_api(
             raise
         logger.warning("Model rejected temperature=%s; retrying at default", temperature)
         resp = litellm.completion(**call_kwargs)
-    content = resp.choices[0].message.content  # type: ignore[union-attr]
+    content = resp.choices[0].message.content
     return (content or "").strip()
 
 
@@ -270,21 +284,21 @@ class CLIBackedProvider(CustomLLM):
     def completion(
         self,
         model: str,
-        messages: list,
+        messages: list[dict[str, Any]],
         api_base: str,
-        custom_prompt_dict: dict,
+        custom_prompt_dict: dict[str, Any],
         model_response: ModelResponse,
-        print_verbose: Callable,
-        encoding,
-        api_key,
-        logging_obj,
-        optional_params: dict,
-        acompletion=None,
-        litellm_params=None,
-        logger_fn=None,
-        headers={},
-        timeout: float | None = None,
-        client=None,
+        print_verbose: Callable[..., Any],
+        encoding: Any,
+        api_key: Any,
+        logging_obj: Any,
+        optional_params: dict[str, Any],
+        acompletion: Any = None,
+        litellm_params: Any = None,
+        logger_fn: Any = None,
+        headers: dict[str, str] | None = None,
+        timeout: float | Timeout | None = None,
+        client: Any = None,
     ) -> ModelResponse:
         # Parse provider/model from the model string.
         # litellm passes it as "provider/model_name" for custom providers.
@@ -292,7 +306,8 @@ class CLIBackedProvider(CustomLLM):
         if provider not in _BACKENDS:
             raise ValueError(f"Unknown CLI provider: {provider!r}")
 
-        effective_timeout = int(timeout) if timeout else DEFAULT_TIMEOUT
+        timeout_value = timeout.read if isinstance(timeout, Timeout) else timeout
+        effective_timeout = int(timeout_value) if timeout_value else DEFAULT_TIMEOUT
         temperature = optional_params.get("temperature", 0.3)
 
         prompt = _messages_to_prompt(messages)
